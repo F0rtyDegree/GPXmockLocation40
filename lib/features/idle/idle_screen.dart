@@ -40,12 +40,6 @@ class IdleScreen extends StatelessWidget {
             label: 'Settings',
             onPressed: () => context.go('/settings'),
           ),
-          _buildMenuButton(
-            context,
-            icon: Icons.group,
-            label: 'Group Sync',
-            onPressed: () {},
-          ),
         ],
       ),
     );

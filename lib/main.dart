@@ -3,9 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
-import 'package:location_joystick/features/onboarding/onboarding_screen.dart';
-import 'package:location_joystick/features/idle/idle_screen.dart';
-import 'package:location_joystick/features/map/map_screen.dart'; // Import the new map screen
+import 'package:gpx_mock_location/features/onboarding/onboarding_screen.dart';
+import 'package:gpx_mock_location/features/idle/idle_screen.dart';
+import 'package:gpx_mock_location/features/map/map_screen.dart'; // Import the new map screen
 
 // Placeholder for the theme provider
 class ThemeProvider with ChangeNotifier {
@@ -79,10 +79,9 @@ final _router = GoRouter(
 
 Future<bool> _checkAllPermissions() async {
   final locationStatus = await Permission.location.status;
-  final overlayStatus = await Permission.systemAlertWindow.status;
   // Checking for mock location app is more complex, so we'll simplify for now.
   // We will consider it granted if the other two are.
-  return locationStatus.isGranted && overlayStatus.isGranted;
+  return locationStatus.isGranted;
 }
 
 void main() {
@@ -100,7 +99,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Location Joystick',
+      title: 'GPX Mock Location',
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.blue,

@@ -1,4 +1,4 @@
-name: location_joystick
+name: gpx_mock_location
 description: "A new Flutter project."
 publish_to: 'none'
 version: 0.1.0
@@ -15,6 +15,7 @@ dependencies:
   location: 10.0.2
   permission_handler: 11.3.1
   provider: ^6.1.5+1
+  shared_preferences: ^2.2.3
 
 dev_dependencies:
   flutter_test:

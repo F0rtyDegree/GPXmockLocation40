@@ -1,4 +1,4 @@
-package com.example.location_joystick
+package by.fortydegree.gpxmocklocation40
 
 import io.flutter.embedding.android.FlutterActivity
 

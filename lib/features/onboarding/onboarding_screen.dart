@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -12,23 +13,32 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   PermissionStatus _locationStatus = PermissionStatus.denied;
-  PermissionStatus _overlayStatus = PermissionStatus.denied;
-  // Mock location doesn't have a status, it's a developer setting.
-  // We'll need a different way to check it. For now, we'll just have a button to open the settings.
+  bool _isMockAppSelected = false;
 
   @override
   void initState() {
     super.initState();
     _checkPermissions();
+    _loadMockAppSelection();
   }
 
   Future<void> _checkPermissions() async {
     final location = await Permission.location.status;
-    final overlay = await Permission.systemAlertWindow.status;
     setState(() {
       _locationStatus = location;
-      _overlayStatus = overlay;
     });
+  }
+
+  Future<void> _loadMockAppSelection() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isMockAppSelected = prefs.getBool('isMockAppSelected') ?? false;
+    });
+  }
+
+  Future<void> _saveMockAppSelection(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isMockAppSelected', value);
   }
 
   Future<void> _requestLocationPermission() async {
@@ -38,38 +48,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
-  Future<void> _requestOverlayPermission() async {
-    final status = await Permission.systemAlertWindow.request();
-    setState(() {
-      _overlayStatus = status;
-    });
-  }
-  
-  void _openDeveloperSettings() {
-    // This is a bit tricky and platform-specific.
-    // For now, we'll just show a dialog with instructions.
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Enable Mock Locations"),
-        content: const Text("1. Go to your phone's Settings.\n2. Find 'Developer options'.\n3. Scroll down to 'Select mock location app' and choose 'Location Joystick'."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text("OK"),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final allGranted = _locationStatus.isGranted && _overlayStatus.isGranted;
+    final allGranted = _locationStatus.isGranted && _isMockAppSelected;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Required Permissions'),
+        title: const Text('Required Setup'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -77,34 +62,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'For the app to work correctly, please grant the following permissions:',
+              'For the app to work correctly, please complete the following steps:',
               style: TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
             _buildPermissionTile(
-              'Location',
-              'Required to show the map and your position.',
+              'Location Permission',
+              'Required to provide location data.',
               _locationStatus,
               _requestLocationPermission,
             ),
-            _buildPermissionTile(
-              'Display over other apps',
-              'Required to show the joystick overlay.',
-              _overlayStatus,
-              _requestOverlayPermission,
-            ),
-            ListTile(
+            const Divider(),
+            CheckboxListTile(
               title: const Text('Mock Location App'),
-              subtitle: const Text('Required to simulate your location.'),
-              trailing: ElevatedButton(
-                onPressed: _openDeveloperSettings,
-                child: const Text('Open Settings'),
-              ),
+              subtitle: const Text('I have selected this app as the mock location app in my phone\'s Developer Options.'),
+              value: _isMockAppSelected,
+              onChanged: (bool? value) {
+                setState(() {
+                  _isMockAppSelected = value ?? false;
+                });
+                _saveMockAppSelection(value ?? false);
+              },
             ),
             const Spacer(),
             ElevatedButton(
-              onPressed: allGranted ? () => context.go('/idle') : null,
+              onPressed: allGranted ? () => context.go('/') : null,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
@@ -139,4 +122,3 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
-
