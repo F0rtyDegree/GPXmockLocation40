@@ -5,7 +5,8 @@ import 'package:provider/provider.dart';
 
 import 'package:gpx_mock_location/features/onboarding/onboarding_screen.dart';
 import 'package:gpx_mock_location/features/idle/idle_screen.dart';
-import 'package:gpx_mock_location/features/map/map_screen.dart'; // Import the new map screen
+import 'package:gpx_mock_location/features/map/map_screen.dart';
+import 'package:gpx_mock_location/features/routes/routes_screen.dart';
 
 // Placeholder for the theme provider
 class ThemeProvider with ChangeNotifier {
@@ -14,12 +15,6 @@ class ThemeProvider with ChangeNotifier {
 }
 
 // Placeholder screens
-class RoutesScreen extends StatelessWidget {
-  const RoutesScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Routes')));
-}
-
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
   @override

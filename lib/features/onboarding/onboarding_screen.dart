@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +12,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   PermissionStatus _locationStatus = PermissionStatus.denied;
+  PermissionStatus _storageStatus = PermissionStatus.denied;
   bool _isMockAppSelected = false;
 
   @override
@@ -24,8 +24,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _checkPermissions() async {
     final location = await Permission.location.status;
+    final storage = await Permission.storage.status;
     setState(() {
       _locationStatus = location;
+      _storageStatus = storage;
     });
   }
 
@@ -48,9 +50,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
+  Future<void> _requestStoragePermission() async {
+    final status = await Permission.storage.request();
+    setState(() {
+      _storageStatus = status;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allGranted = _locationStatus.isGranted && _isMockAppSelected;
+    final allGranted = _locationStatus.isGranted && _storageStatus.isGranted && _isMockAppSelected;
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +81,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               'Required to provide location data.',
               _locationStatus,
               _requestLocationPermission,
+            ),
+            const Divider(),
+            _buildPermissionTile(
+              'Storage Permission',
+              'Required to import GPX files from your device.',
+              _storageStatus,
+              _requestStoragePermission,
             ),
             const Divider(),
             CheckboxListTile(
