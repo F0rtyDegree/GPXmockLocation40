@@ -59,6 +59,34 @@ class _RoutesScreenState extends State<RoutesScreen> {
     }
   }
 
+  Future<void> _deleteRoute(GpxRoute route, int index) async {
+    setState(() {
+      _routes.remove(route);
+    });
+    await _saveRoutes();
+
+    if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Маршрут "${route.name}" удален'),
+                action: SnackBarAction(
+                    label: 'ОТМЕНА',
+                    onPressed: () {
+                        _undoDelete(route, index);
+                    },
+                ),
+            ),
+        );
+    }
+  }
+
+  void _undoDelete(GpxRoute route, int index) {
+    setState(() {
+      _routes.insert(index, route);
+    });
+    _saveRoutes();
+  }
+
   Future<String?> _getRouteNameFromDialog(String defaultName) async {
     final controller = TextEditingController(text: defaultName.replaceAll('.gpx', ''));
     return showDialog<String>(
@@ -89,7 +117,6 @@ class _RoutesScreenState extends State<RoutesScreen> {
   }
 
   Future<void> _importGpxFile() async {
-    // ... (import logic is the same, but now uses GpxWaypoint)
     var status = await Permission.storage.status;
     if (!status.isGranted) {
       status = await Permission.storage.request();
@@ -140,7 +167,7 @@ class _RoutesScreenState extends State<RoutesScreen> {
       setState(() {
         _routes.add(newRoute);
       });
-      await _saveRoutes(); // Save routes after adding a new one
+      await _saveRoutes();
 
     } catch (e) {
       if (kDebugMode) {
@@ -166,7 +193,6 @@ class _RoutesScreenState extends State<RoutesScreen> {
                 return ListTile(
                   title: Text(route.name),
                   subtitle: Text('Точек: ${route.points.length}'),
-                  trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -174,6 +200,19 @@ class _RoutesScreenState extends State<RoutesScreen> {
                       ),
                     );
                   },
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _deleteRoute(route, index);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Удалить'),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
