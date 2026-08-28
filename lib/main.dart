@@ -1,92 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
-
-import 'package:gpx_mock_location/features/onboarding/onboarding_screen.dart';
-import 'package:gpx_mock_location/features/idle/idle_screen.dart';
-import 'package:gpx_mock_location/features/map/map_screen.dart';
-import 'package:gpx_mock_location/features/routes/routes_screen.dart';
-
-// Placeholder for the theme provider
-class ThemeProvider with ChangeNotifier {
-  final ThemeMode _themeMode = ThemeMode.system;
-  ThemeMode get themeMode => _themeMode;
-}
-
-// Placeholder screens
-class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Favorites')));
-}
-
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Settings')));
-}
-
-// GoRouter configuration
-final _router = GoRouter(
-  routes: [
-    GoRoute(
-        path: '/',
-        builder: (context, state) => const IdleScreen(),
-        routes: [
-          GoRoute(
-            path: 'map',
-            builder: (context, state) => const MapScreen(), // Use the real map screen
-          ),
-          GoRoute(
-            path: 'routes',
-            builder: (context, state) => const RoutesScreen(),
-          ),
-          GoRoute(
-            path: 'favorites',
-            builder: (context, state) => const FavoritesScreen(),
-          ),
-          GoRoute(
-            path: 'settings',
-            builder: (context, state) => const SettingsScreen(),
-          ),
-        ]),
-    GoRoute(
-      path: '/onboarding',
-      builder: (context, state) => const OnboardingScreen(),
-    ),
-  ],
-  redirect: (BuildContext context, GoRouterState state) async {
-    final allPermissionsGranted = await _checkAllPermissions();
-    final isOnboarding = state.fullPath == '/onboarding';
-
-    if (!allPermissionsGranted && !isOnboarding) {
-      return '/onboarding';
-    }
-
-    if (allPermissionsGranted && isOnboarding) {
-      return '/';
-    }
-
-    return null;
-  },
-);
-
-Future<bool> _checkAllPermissions() async {
-  final locationStatus = await Permission.location.status;
-  // Checking for mock location app is more complex, so we'll simplify for now.
-  // We will consider it granted if the other two are.
-  return locationStatus.isGranted;
-}
+import 'features/routes/routes_screen.dart';
 
 void main() {
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
-      child: const MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
+
+final _router = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomeScreen(),
+      routes: [
+        GoRoute(
+          path: 'routes',
+          builder: (context, state) => const RoutesScreen(),
+        ),
+        // Данный маршрут больше не используется для навигации,
+        // так как MapScreen открывается из RoutesScreen через MaterialPageRoute
+        // Но я оставлю его для возможного использования в будущем.
+        GoRoute(
+          path: 'map',
+          // Для прямого открытия карты потребуется передача параметра.
+          // Этот код потребует рефакторинга, если мы решим так делать.
+          builder: (context, state) => const Scaffold(
+            body: Center(
+              child: Text('Карта не может быть отображена без маршрута'),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ],
+);
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -94,18 +41,20 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'GPX Mock Location',
-      theme: ThemeData(
-        brightness: Brightness.light,
-        primarySwatch: Colors.blue,
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
-      ),
-      themeMode: Provider.of<ThemeProvider>(context).themeMode,
       routerConfig: _router,
-      debugShowCheckedModeBanner: false,
+      title: 'GPX Viewer',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
     );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const RoutesScreen(); // Просто отображаем экран маршрутов
   }
 }

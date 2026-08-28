@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:gpx/gpx.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../map/map_screen.dart';
+import 'models/gpx_route.dart';
+import 'models/gpx_waypoint.dart';
 
 class RoutesScreen extends StatefulWidget {
   const RoutesScreen({super.key});
@@ -14,77 +20,132 @@ class RoutesScreen extends StatefulWidget {
 }
 
 class _RoutesScreenState extends State<RoutesScreen> {
+  final List<GpxRoute> _routes = [];
+  static const String _routesKey = 'gpx_routes';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final routesJson = prefs.getStringList(_routesKey) ?? [];
+    setState(() {
+      _routes.clear();
+      for (var routeJson in routesJson) {
+        try {
+          final routeMap = jsonDecode(routeJson) as Map<String, dynamic>;
+          _routes.add(GpxRoute.fromJson(routeMap));
+        } catch (e) {
+          if (kDebugMode) {
+            print('[GPX_LOAD] Error decoding route: $e');
+          }
+        }
+      }
+    });
+    if (kDebugMode) {
+      print('[GPX_LOAD] Loaded ${_routes.length} routes.');
+    }
+  }
+
+  Future<void> _saveRoutes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final routesJson = _routes.map((route) => jsonEncode(route.toJson())).toList();
+    await prefs.setStringList(_routesKey, routesJson);
+    if (kDebugMode) {
+      print('[GPX_SAVE] Saved ${_routes.length} routes.');
+    }
+  }
+
+  Future<String?> _getRouteNameFromDialog(String defaultName) async {
+    final controller = TextEditingController(text: defaultName.replaceAll('.gpx', ''));
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Название маршрута'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Введите название'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(controller.text);
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Future<void> _importGpxFile() async {
-    if (kDebugMode) {
-      print('[GPX_IMPORT] Starting file import process...');
-    }
-
-    // Request storage permission
+    // ... (import logic is the same, but now uses GpxWaypoint)
     var status = await Permission.storage.status;
     if (!status.isGranted) {
       status = await Permission.storage.request();
       if (!status.isGranted) {
-        if (kDebugMode) {
-          print('[GPX_IMPORT] Storage permission was denied.');
-        }
-        // Optionally, show a dialog to the user that permission is needed
         return;
       }
     }
 
     try {
-      if (kDebugMode) {
-        print('[GPX_IMPORT] Launching file picker...');
-      }
-      // Pick a file
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-      );
+      final result = await FilePicker.platform.pickFiles(type: FileType.any);
 
       if (result == null || result.files.single.path == null) {
-        if (kDebugMode) {
-          print('[GPX_IMPORT] User canceled the file picker or file path is null.');
-        }
         return;
       }
-      
+
       final file = result.files.single;
 
       if (!file.name.toLowerCase().endsWith('.gpx')) {
-        if (kDebugMode) {
-          print('[GPX_IMPORT] Invalid file type. Please select a .gpx file.');
-        }
-        // TODO: Show an error message to the user that the file type is invalid
         return;
-      }
-
-      if (kDebugMode) {
-          print('[GPX_IMPORT] File picked: ${file.name}');
       }
 
       final path = file.path!;
       final gpxString = await File(path).readAsString();
-
-      if (kDebugMode) {
-        print('[GPX_IMPORT] File read successfully. Parsing content...');
-      }
-      
       final gpx = GpxReader().fromString(gpxString);
-      
-      final pointCount = gpx.wpts.length;
-      if (kDebugMode) {
-        print('[GPX_IMPORT] Successfully parsed GPX file: ${file.name}');
-        print('[GPX_IMPORT] Found $pointCount waypoint points.');
+
+      final List<GpxWaypoint> routePoints = [];
+      if (gpx.trks.isNotEmpty) {
+        for (var track in gpx.trks) {
+          for (var segment in track.trksegs) {
+            routePoints.addAll(segment.trkpts.map((wpt) => GpxWaypoint(wpt)));
+          }
+        }
+      } else if (gpx.wpts.isNotEmpty) {
+        routePoints.addAll(gpx.wpts.map((wpt) => GpxWaypoint(wpt)));
       }
 
-      // TODO: Save the parsed route and display it in the list
+      if (routePoints.isEmpty) {
+        return;
+      }
+
+      final routeName = await _getRouteNameFromDialog(file.name);
+      if (routeName == null || routeName.isEmpty) {
+        return;
+      }
+
+      final newRoute = GpxRoute(name: routeName, points: routePoints);
+
+      setState(() {
+        _routes.add(newRoute);
+      });
+      await _saveRoutes(); // Save routes after adding a new one
 
     } catch (e) {
       if (kDebugMode) {
         print('[GPX_IMPORT] An error occurred during the import process: $e');
       }
-      // TODO: Show an error message to the user
     }
   }
 
@@ -94,9 +155,28 @@ class _RoutesScreenState extends State<RoutesScreen> {
       appBar: AppBar(
         title: const Text('Маршруты'),
       ),
-      body: const Center(
-        child: Text('Здесь будет список ваших маршрутов.'),
-      ),
+      body: _routes.isEmpty
+          ? const Center(
+              child: Text('Здесь будет список ваших маршрутов.'),
+            )
+          : ListView.builder(
+              itemCount: _routes.length,
+              itemBuilder: (context, index) {
+                final route = _routes[index];
+                return ListTile(
+                  title: Text(route.name),
+                  subtitle: Text('Точек: ${route.points.length}'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => MapScreen(route: route),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: _importGpxFile,
         tooltip: 'Импорт GPX',
