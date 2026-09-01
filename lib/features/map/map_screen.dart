@@ -25,8 +25,12 @@ class _MapScreenState extends State<MapScreen> {
   static const _prefSpeedKey = 'simulation_speed_kmph';
 
   final MapController _mapController = MapController();
-  final List<LatLng> _routePoints = [];
+  
   LatLng? _currentLocation;
+  double? _currentAltitude;
+  double? _currentBearing;
+  int? _currentSatellites;
+
   Timer? _simulationTimer;
   bool _isSimulating = false;
 
@@ -40,13 +44,13 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _loadSpeed();
 
-    _routePoints.addAll(widget.route.points
-        .map((p) => LatLng(p.wpt.lat ?? 0.0, p.wpt.lon ?? 0.0)));
-
-    if (_routePoints.isNotEmpty) {
-      _currentLocation = _routePoints.first;
+    if (widget.route.points.isNotEmpty) {
+        final firstPoint = widget.route.points.first;
+      _currentLocation = LatLng(firstPoint.wpt.lat ?? 0.0, firstPoint.wpt.lon ?? 0.0);
+      _currentAltitude = firstPoint.wpt.ele ?? 0.0;
+      _currentBearing = firstPoint.course ?? 0.0;
+      _currentSatellites = firstPoint.satellites ?? 23;
     }
-    
   }
 
   Future<void> _loadSpeed() async {
@@ -54,7 +58,6 @@ class _MapScreenState extends State<MapScreen> {
     if (mounted) {
       setState(() {
         _simulationSpeedKmph = prefs.getDouble(_prefSpeedKey) ?? 50.0;
-        
       });
     }
   }
@@ -62,12 +65,10 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _saveSpeed(double speed) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_prefSpeedKey, speed);
-    
   }
 
   @override
   void dispose() {
-    
     _simulationTimer?.cancel();
     super.dispose();
   }
@@ -83,17 +84,17 @@ class _MapScreenState extends State<MapScreen> {
   void _centerMap() {
     if (_isSimulating && _currentLocation != null) {
       _mapController.move(_currentLocation!, _mapController.camera.zoom);
-    } else if (_routePoints.isNotEmpty) {
+    } else if (widget.route.points.isNotEmpty) {
       _mapController.fitCamera(
         CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints(_routePoints),
+          bounds: LatLngBounds.fromPoints(widget.route.points.map((p) => LatLng(p.wpt.lat!, p.wpt.lon!)).toList()),
           padding: const EdgeInsets.all(50.0),
         ),
       );
     }
   }
 
-  Future<void> _setMockLocation(LatLng location, double speedKmph) async {
+  Future<void> _setMockLocation(LatLng location, double speedKmph, double altitude, double bearing, int satellites) async {
     try {
       final speedMps = speedKmph * 1000 / 3600;
       
@@ -101,6 +102,9 @@ class _MapScreenState extends State<MapScreen> {
         'lat': location.latitude,
         'lon': location.longitude,
         'speed': speedMps,
+        'altitude': altitude,
+        'bearing': bearing,
+        'satellites': satellites,
       });
     } on PlatformException catch (e) {
       print("[NATIVE] FAILED to set mock location: '${e.message}'. Check mock location app setting in Developer Options.");
@@ -112,94 +116,121 @@ class _MapScreenState extends State<MapScreen> {
       timer.cancel();
       return;
     }
-
     
-    
-    if (_currentSegmentIndex >= _routePoints.length - 1) {
-      
+    if (_currentSegmentIndex >= widget.route.points.length - 1) {
       _simulationTimer?.cancel();
+      final lastWaypoint = widget.route.points.last;
+      final lastLocation = LatLng(lastWaypoint.wpt.lat!, lastWaypoint.wpt.lon!);
+
       setState(() {
         _isSimulating = false;
-        _currentLocation = _routePoints.last;
-        _setMockLocation(_currentLocation!, 0); 
+        _currentLocation = lastLocation;
       });
+
+      _setMockLocation(
+          lastLocation, 
+          0,
+          _currentAltitude ?? lastWaypoint.wpt.ele ?? 0,
+          _currentBearing ?? 0,
+          _currentSatellites ?? 23
+      );
       return;
     }
 
     final speedMps = _simulationSpeedKmph * 1000 / 3600;
-    final distanceThisTick = speedMps * 0.1;
+    final distanceThisTick = speedMps * 0.1; 
 
     _distanceCoveredOnSegment += distanceThisTick;
 
-    final startPoint = _routePoints[_currentSegmentIndex];
-    final endPoint = _routePoints[_currentSegmentIndex + 1];
+    final startWaypoint = widget.route.points[_currentSegmentIndex];
+    final endWaypoint = widget.route.points[_currentSegmentIndex + 1];
+    final startPoint = LatLng(startWaypoint.wpt.lat!, startWaypoint.wpt.lon!);
+    final endPoint = LatLng(endWaypoint.wpt.lat!, endWaypoint.wpt.lon!);
     final totalSegmentDistance = _distance(startPoint, endPoint);
 
-    double t = totalSegmentDistance > 0
-        ? _distanceCoveredOnSegment / totalSegmentDistance
-        : 1.0;
-    
-    
+    double t = totalSegmentDistance > 0 ? _distanceCoveredOnSegment / totalSegmentDistance : 1.0;
 
-    while (t >= 1.0 && _currentSegmentIndex < _routePoints.length - 1) {
-        
+    while (t >= 1.0 && _currentSegmentIndex < widget.route.points.length - 1) {
         final coveredOnPrev = totalSegmentDistance;
         _distanceCoveredOnSegment -= coveredOnPrev;
         _currentSegmentIndex++;
 
-        if (_currentSegmentIndex >= _routePoints.length - 1) {
-            
-            final endLocation = _routePoints.last;
+        if (_currentSegmentIndex >= widget.route.points.length - 1) {
+            final endLocation = LatLng(widget.route.points.last.wpt.lat!, widget.route.points.last.wpt.lon!);
             setState(() { _currentLocation = endLocation; });
-            _setMockLocation(endLocation, 0);
+            _setMockLocation(
+                endLocation, 
+                0, 
+                widget.route.points.last.wpt.ele ?? _currentAltitude ?? 0,
+                _currentBearing ?? 0,
+                _currentSatellites ?? 23
+            );
             _simulationTimer?.cancel();
             setState(() { _isSimulating = false; });
             return;
         }
 
-        final newStart = _routePoints[_currentSegmentIndex];
-        final newEnd = _routePoints[_currentSegmentIndex + 1];
-        final newTotalDist = _distance(newStart, newEnd);
+        final newStartWpt = widget.route.points[_currentSegmentIndex];
+        final newEndWpt = widget.route.points[_currentSegmentIndex + 1];
+        final newTotalDist = _distance(LatLng(newStartWpt.wpt.lat!, newStartWpt.wpt.lon!), LatLng(newEndWpt.wpt.lat!, newEndWpt.wpt.lon!));
         t = newTotalDist > 0 ? _distanceCoveredOnSegment / newTotalDist : 1.0;
-        
     }
     
-    final currentStart = _routePoints[_currentSegmentIndex];
-    final currentEnd = _routePoints[_currentSegmentIndex + 1];
-    final newLat = currentStart.latitude + (currentEnd.latitude - currentStart.latitude) * t;
-    final newLon = currentStart.longitude + (currentEnd.longitude - currentStart.longitude) * t;
+    final currentStartWpt = widget.route.points[_currentSegmentIndex];
+    final currentEndWpt = widget.route.points[_currentSegmentIndex + 1];
+    
+    final currentStartPoint = LatLng(currentStartWpt.wpt.lat!, currentStartWpt.wpt.lon!);
+    final currentEndPoint = LatLng(currentEndWpt.wpt.lat!, currentEndWpt.wpt.lon!);
+    
+    final newLat = currentStartPoint.latitude + (currentEndPoint.latitude - currentStartPoint.latitude) * t;
+    final newLon = currentStartPoint.longitude + (currentEndPoint.longitude - currentStartPoint.longitude) * t;
     final newLocation = LatLng(newLat, newLon);
 
-    
+    final startEle = currentStartWpt.wpt.ele ?? _currentAltitude ?? 252.0;
+    final endEle = currentEndWpt.wpt.ele ?? startEle;
+    final newAltitude = startEle + (endEle - startEle) * t;
+
+    final newBearing = currentStartWpt.course ?? _currentBearing ?? 0.0;
+    final newSatellites = currentStartWpt.satellites ?? _currentSatellites ?? 23;
 
     setState(() {
       _currentLocation = newLocation;
+      _currentAltitude = newAltitude;
+      _currentBearing = newBearing;
+      _currentSatellites = newSatellites;
     });
 
-    _setMockLocation(newLocation, _simulationSpeedKmph);
+    _setMockLocation(newLocation, _simulationSpeedKmph, newAltitude, newBearing, newSatellites);
     _mapController.move(newLocation, _mapController.camera.zoom);
   }
 
   void _startStopSimulation() {
-    if (_routePoints.length < 2) return;
+    if (widget.route.points.length < 2) return;
 
     if (_isSimulating) {
-      
       _simulationTimer?.cancel();
       if (_currentLocation != null) {
-        _setMockLocation(_currentLocation!, 0); 
+        _setMockLocation(
+          _currentLocation!, 
+          0,
+          _currentAltitude ?? 0.0,
+          _currentBearing ?? 0.0,
+          _currentSatellites ?? 23
+        ); 
       }
       setState(() {
         _isSimulating = false;
       });
     } else {
-      
       setState(() {
-        if (_currentSegmentIndex >= _routePoints.length - 1) {
-          
+        if (_currentSegmentIndex >= widget.route.points.length - 1) {
           _currentSegmentIndex = 0;
           _distanceCoveredOnSegment = 0.0;
-          _currentLocation = _routePoints.first;
+          final firstPoint = widget.route.points.first;
+          _currentLocation = LatLng(firstPoint.wpt.lat!, firstPoint.wpt.lon!);
+          _currentAltitude = firstPoint.wpt.ele ?? 0.0;
+          _currentBearing = firstPoint.course ?? 0.0;
+          _currentSatellites = firstPoint.satellites ?? 23;
         }
         _isSimulating = true;
       });
@@ -208,8 +239,7 @@ class _MapScreenState extends State<MapScreen> {
   }
   
   void _showSpeedInputDialog() {
-    final TextEditingController speedController =
-        TextEditingController(text: _simulationSpeedKmph.toStringAsFixed(0));
+    final TextEditingController speedController = TextEditingController(text: _simulationSpeedKmph.toStringAsFixed(0));
     showDialog(
       context: context,
       builder: (context) {
@@ -247,6 +277,8 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final routeLatLngs = widget.route.points.map((p) => LatLng(p.wpt.lat!, p.wpt.lon!)).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.route.name),
@@ -263,26 +295,22 @@ class _MapScreenState extends State<MapScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _routePoints.isNotEmpty
-                  ? _routePoints.first
-                  : const LatLng(51.5, -0.09),
+              initialCenter: routeLatLngs.isNotEmpty ? routeLatLngs.first : const LatLng(51.5, -0.09),
               initialZoom: 13.0,
               onMapReady: () {
-                
                 Future.delayed(const Duration(milliseconds: 200), _centerMap);
               },
             ),
             children: [
               TileLayer(
-                urlTemplate:
-                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                 subdomains: const ['a', 'b', 'c'],
                 userAgentPackageName: 'com.example.gpx_mock_location',
               ),
               PolylineLayer(
                 polylines: [
                   Polyline(
-                    points: _routePoints,
+                    points: routeLatLngs,
                     strokeWidth: 4.0,
                     color: Colors.blue,
                   ),
@@ -295,12 +323,15 @@ class _MapScreenState extends State<MapScreen> {
                       width: 80.0,
                       height: 80.0,
                       point: _currentLocation!,
-                      child: Container(
-                        alignment: Alignment.topCenter,
-                        child: const Icon(
-                          Icons.location_on,
-                          color: Colors.red,
-                          size: 40.0,
+                      child: Transform.rotate(
+                        angle: (_currentBearing ?? 0) * (3.141592653589793 / 180),
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.navigation,
+                            color: Colors.red,
+                            size: 30.0,
+                          ),
                         ),
                       ),
                     ),

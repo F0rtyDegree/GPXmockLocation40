@@ -2,8 +2,10 @@ import 'package:gpx/gpx.dart';
 
 class GpxWaypoint {
   final Wpt _wpt;
+  double? course;
+  int? satellites;
 
-  GpxWaypoint(this._wpt);
+  GpxWaypoint(this._wpt, {this.course, this.satellites});
 
   Wpt get wpt => _wpt;
 
@@ -16,6 +18,8 @@ class GpxWaypoint {
         'name': _wpt.name,
         'desc': _wpt.desc,
         'sym': _wpt.sym,
+        'course': course,
+        'satellites': satellites,
       };
 
   // Create a GpxWaypoint from a Map.
@@ -28,6 +32,10 @@ class GpxWaypoint {
       ..name = json['name'] as String?
       ..desc = json['desc'] as String?
       ..sym = json['sym'] as String?;
-    return GpxWaypoint(wpt);
+    return GpxWaypoint(
+      wpt,
+      course: json['course'] as double?,
+      satellites: json['satellites'] as int?,
+    );
   }
 }

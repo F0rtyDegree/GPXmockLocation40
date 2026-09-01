@@ -4,6 +4,7 @@ package by.fortydegree.gpxmocklocation40
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
+import android.os.Bundle
 import android.os.SystemClock
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
@@ -23,15 +24,15 @@ class MainActivity: FlutterActivity() {
         try {
             locationManager?.addTestProvider(
                 MOCK_PROVIDER,
-                false,
-                false,
-                false,
-                false,
-                true,
-                true,
-                true,
-                0,
-                5
+                false,  // requiresNetwork
+                false,  // requiresSatellite
+                false,  // requiresCell
+                false,  // hasMonetaryCost
+                true,   // supportsAltitude
+                true,   // supportsSpeed
+                true,   // supportsBearing
+                0,      // powerRequirement
+                5       // accuracy
             )
             locationManager?.setTestProviderEnabled(MOCK_PROVIDER, true)
         } catch (e: SecurityException) {
@@ -45,15 +46,23 @@ class MainActivity: FlutterActivity() {
                     val lat = call.argument<Double>("lat")!!
                     val lon = call.argument<Double>("lon")!!
                     val speed = call.argument<Double>("speed")!!
+                    val altitude = call.argument<Double>("altitude")!!
+                    val bearing = call.argument<Double>("bearing")!!
+                    val satellites = call.argument<Int>("satellites")!!
 
                     val mockLocation = Location(MOCK_PROVIDER).apply {
                         latitude = lat
                         longitude = lon
-                        altitude = 0.0
-                        this.speed = speed.toFloat() // скорость в м/с
+                        this.altitude = altitude
+                        this.speed = speed.toFloat()
+                        this.bearing = bearing.toFloat()
                         accuracy = 1.0f
                         time = System.currentTimeMillis()
                         elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                        
+                        val extras = Bundle()
+                        extras.putInt("satellites", satellites)
+                        this.extras = extras
                     }
 
                     locationManager?.setTestProviderLocation(MOCK_PROVIDER, mockLocation)

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:gpx/gpx.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -176,6 +177,20 @@ class _RoutesScreenState extends State<RoutesScreen> {
             );
         }
         return;
+      }
+
+      // Calculate bearing (course) for each point
+      final distance = const Distance();
+      for (var i = 0; i < routePoints.length - 1; i++) {
+        final p1 = routePoints[i];
+        final p2 = routePoints[i + 1];
+        final p1LatLng = LatLng(p1.wpt.lat!, p1.wpt.lon!);
+        final p2LatLng = LatLng(p2.wpt.lat!, p2.wpt.lon!);
+        p1.course = distance.bearing(p1LatLng, p2LatLng);
+      }
+      // For the last point, use the bearing of the previous segment.
+      if (routePoints.length > 1) {
+          routePoints.last.course = routePoints[routePoints.length - 2].course;
       }
 
       final routeName = await _getRouteNameFromDialog(file.name);
