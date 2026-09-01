@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -141,19 +143,38 @@ class _RoutesScreenState extends State<RoutesScreen> {
       final path = file.path!;
       final gpxString = await File(path).readAsString();
       final gpx = GpxReader().fromString(gpxString);
-
+      final int totalPointsBeforeFiltering;
       final List<GpxWaypoint> routePoints = [];
+
+      // STRICTLY use track points (<trkpt>) and ignore standalone waypoints (<wpt>).
       if (gpx.trks.isNotEmpty) {
+        int allPointsCount = 0;
         for (var track in gpx.trks) {
           for (var segment in track.trksegs) {
-            routePoints.addAll(segment.trkpts.map((wpt) => GpxWaypoint(wpt)));
+            allPointsCount += segment.trkpts.length;
+            for (var wpt in segment.trkpts) {
+               // Add point only if it's the first one or its coordinates are different from the previous one.
+              if (routePoints.isEmpty || routePoints.last.wpt.lat != wpt.lat || routePoints.last.wpt.lon != wpt.lon) {
+                routePoints.add(GpxWaypoint(wpt));
+              }
+            }
           }
         }
-      } else if (gpx.wpts.isNotEmpty) {
-        routePoints.addAll(gpx.wpts.map((wpt) => GpxWaypoint(wpt)));
+        totalPointsBeforeFiltering = allPointsCount;
+      } else {
+        totalPointsBeforeFiltering = 0;
       }
 
-      if (routePoints.isEmpty) {
+      if (kDebugMode) {
+        print('[GPX_IMPORT] Filtered track points: ${routePoints.length} (out of $totalPointsBeforeFiltering original points)');
+      }
+
+      if (routePoints.length < 2) {
+        if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('GPX файл не содержит валидного трека (меньше 2 уникальных точек).')),
+            );
+        }
         return;
       }
 

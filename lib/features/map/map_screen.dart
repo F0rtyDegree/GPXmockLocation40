@@ -38,7 +38,6 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    print("[LIFECYCLE] initState");
     _loadSpeed();
 
     _routePoints.addAll(widget.route.points
@@ -47,7 +46,7 @@ class _MapScreenState extends State<MapScreen> {
     if (_routePoints.isNotEmpty) {
       _currentLocation = _routePoints.first;
     }
-    print("Route loaded with ${_routePoints.length} points.");
+    
   }
 
   Future<void> _loadSpeed() async {
@@ -55,7 +54,7 @@ class _MapScreenState extends State<MapScreen> {
     if (mounted) {
       setState(() {
         _simulationSpeedKmph = prefs.getDouble(_prefSpeedKey) ?? 50.0;
-        print("Loaded speed: $_simulationSpeedKmph km/h");
+        
       });
     }
   }
@@ -63,12 +62,12 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _saveSpeed(double speed) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_prefSpeedKey, speed);
-    print("Saved speed: $speed km/h");
+    
   }
 
   @override
   void dispose() {
-    print("[LIFECYCLE] dispose");
+    
     _simulationTimer?.cancel();
     super.dispose();
   }
@@ -97,7 +96,7 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _setMockLocation(LatLng location, double speedKmph) async {
     try {
       final speedMps = speedKmph * 1000 / 3600;
-      print('  [NATIVE] Setting mock location: Lat: ${location.latitude}, Lon: ${location.longitude}, Speed: $speedMps m/s');
+      
       await _platform.invokeMethod('setMockLocation', {
         'lat': location.latitude,
         'lon': location.longitude,
@@ -114,10 +113,10 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    print("--- Tick ---");
+    
     
     if (_currentSegmentIndex >= _routePoints.length - 1) {
-      print("End of route reached in tick. Stopping simulation.");
+      
       _simulationTimer?.cancel();
       setState(() {
         _isSimulating = false;
@@ -140,16 +139,16 @@ class _MapScreenState extends State<MapScreen> {
         ? _distanceCoveredOnSegment / totalSegmentDistance
         : 1.0;
     
-    print('  Segment: $_currentSegmentIndex, Covered: ${_distanceCoveredOnSegment.toStringAsFixed(2)}m, Total: ${totalSegmentDistance.toStringAsFixed(2)}m, t: ${t.toStringAsFixed(3)}');
+    
 
     while (t >= 1.0 && _currentSegmentIndex < _routePoints.length - 1) {
-        print('  >> Segment completed. Moving to next segment.');
+        
         final coveredOnPrev = totalSegmentDistance;
         _distanceCoveredOnSegment -= coveredOnPrev;
         _currentSegmentIndex++;
 
         if (_currentSegmentIndex >= _routePoints.length - 1) {
-            print("End of route reached while processing segments. Stopping.");
+            
             final endLocation = _routePoints.last;
             setState(() { _currentLocation = endLocation; });
             _setMockLocation(endLocation, 0);
@@ -162,7 +161,7 @@ class _MapScreenState extends State<MapScreen> {
         final newEnd = _routePoints[_currentSegmentIndex + 1];
         final newTotalDist = _distance(newStart, newEnd);
         t = newTotalDist > 0 ? _distanceCoveredOnSegment / newTotalDist : 1.0;
-        print('  >> New Segment: $_currentSegmentIndex, Carry-over distance: ${_distanceCoveredOnSegment.toStringAsFixed(2)}m, New t: ${t.toStringAsFixed(3)}');
+        
     }
     
     final currentStart = _routePoints[_currentSegmentIndex];
@@ -171,7 +170,7 @@ class _MapScreenState extends State<MapScreen> {
     final newLon = currentStart.longitude + (currentEnd.longitude - currentStart.longitude) * t;
     final newLocation = LatLng(newLat, newLon);
 
-    print('  New Location: ${newLocation.latitude.toStringAsFixed(6)}, ${newLocation.longitude.toStringAsFixed(6)}');
+    
 
     setState(() {
       _currentLocation = newLocation;
@@ -185,7 +184,7 @@ class _MapScreenState extends State<MapScreen> {
     if (_routePoints.length < 2) return;
 
     if (_isSimulating) {
-      print(">>> STOPPING SIMULATION");
+      
       _simulationTimer?.cancel();
       if (_currentLocation != null) {
         _setMockLocation(_currentLocation!, 0); 
@@ -194,10 +193,10 @@ class _MapScreenState extends State<MapScreen> {
         _isSimulating = false;
       });
     } else {
-      print(">>> STARTING SIMULATION");
+      
       setState(() {
         if (_currentSegmentIndex >= _routePoints.length - 1) {
-          print(">>> Resetting simulation to start.");
+          
           _currentSegmentIndex = 0;
           _distanceCoveredOnSegment = 0.0;
           _currentLocation = _routePoints.first;
@@ -269,7 +268,7 @@ class _MapScreenState extends State<MapScreen> {
                   : const LatLng(51.5, -0.09),
               initialZoom: 13.0,
               onMapReady: () {
-                print("Map ready.");
+                
                 Future.delayed(const Duration(milliseconds: 200), _centerMap);
               },
             ),
@@ -296,10 +295,13 @@ class _MapScreenState extends State<MapScreen> {
                       width: 80.0,
                       height: 80.0,
                       point: _currentLocation!,
-                      child: const Icon(
-                        Icons.location_on,
-                        color: Colors.red,
-                        size: 40.0,
+                      child: Container(
+                        alignment: Alignment.topCenter,
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Colors.red,
+                          size: 40.0,
+                        ),
                       ),
                     ),
                   ],
