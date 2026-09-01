@@ -31,8 +31,8 @@ class MainActivity: FlutterActivity() {
                 true,   // supportsAltitude
                 true,   // supportsSpeed
                 true,   // supportsBearing
-                0,      // powerRequirement
-                5       // accuracy
+                1,      // powerRequirement
+                2       // accuracy
             )
             locationManager?.setTestProviderEnabled(MOCK_PROVIDER, true)
         } catch (e: SecurityException) {

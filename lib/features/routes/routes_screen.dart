@@ -212,6 +212,93 @@ class _RoutesScreenState extends State<RoutesScreen> {
     }
   }
 
+  Future<void> _exportRoute(GpxRoute route) async {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+        if (!status.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Для экспорта нужно разрешение на доступ к хранилищу.')));
+          }
+          return;
+        }
+      }
+    }
+
+    final gpx = Gpx();
+    gpx.metadata = Metadata(name: route.name);
+    gpx.trks = [
+      Trk(
+        name: route.name,
+        trksegs: [
+          Trkseg(
+            trkpts: route.points.map((p) {
+              final wpt = p.wpt;
+              final extensionsMap = <String, String>{};
+
+              if (p.course != null) {
+                extensionsMap['course'] = p.course.toString();
+              }
+
+              if (extensionsMap.isNotEmpty) {
+                wpt.extensions = extensionsMap;
+              }
+
+              return wpt;
+            }).toList(),
+          ),
+        ],
+      ),
+    ];
+
+    final xmlString = GpxWriter().asString(gpx, pretty: true);
+    final fileName = '${route.name.replaceAll(' ', '_')}.gpx';
+    final Uint8List bytes = utf8.encode(xmlString);
+
+    try {
+      final String? path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Сохранить как GPX',
+        fileName: fileName,
+        bytes: (kIsWeb || Platform.isAndroid || Platform.isIOS) ? bytes : null,
+        type: FileType.custom,
+        allowedExtensions: ['gpx'],
+      );
+
+      if (path == null) {
+        // User canceled the picker
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Экспорт отменен.')),
+          );
+        }
+        return;
+      }
+
+      if (!kIsWeb && !Platform.isAndroid && !Platform.isIOS) {
+        // This is a desktop platform, so we need to write the file manually.
+        final file = File(path);
+        await file.writeAsBytes(bytes);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Маршрут сохранен в: $path')),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('An error occurred during export: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка экспорта: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -240,9 +327,15 @@ class _RoutesScreenState extends State<RoutesScreen> {
                     onSelected: (value) {
                       if (value == 'delete') {
                         _deleteRoute(route, index);
+                      } else if (value == 'export') {
+                        _exportRoute(route);
                       }
                     },
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'export',
+                        child: Text('Экспорт'),
+                      ),
                       const PopupMenuItem<String>(
                         value: 'delete',
                         child: Text('Удалить'),
