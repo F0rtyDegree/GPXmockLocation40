@@ -186,7 +186,11 @@ class _RoutesScreenState extends State<RoutesScreen> {
         final p2 = routePoints[i + 1];
         final p1LatLng = LatLng(p1.wpt.lat!, p1.wpt.lon!);
         final p2LatLng = LatLng(p2.wpt.lat!, p2.wpt.lon!);
-        p1.course = distance.bearing(p1LatLng, p2LatLng);
+        var bearing = distance.bearing(p1LatLng, p2LatLng);
+        if (bearing < 0) {
+          bearing += 360;
+        }
+        p1.course = bearing;
       }
       // For the last point, use the bearing of the previous segment.
       if (routePoints.length > 1) {
