@@ -1,4 +1,4 @@
-============= pubspec.yaml ===
+--- START OF FILE: ./pubspec.yaml ---
 name: gpx_mock_location
 description: "A new Flutter project."
 publish_to: 'none'
@@ -10,13 +10,16 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  file_picker: ^8.0.5
   flutter_map: ^8.3.1
   go_router: ^17.2.3
+  gpx: ^2.3.0
   latlong2: ^0.10.1
   location: 10.0.2
   permission_handler: 11.3.1
   provider: ^6.1.5+1
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.5.5
+  google_maps_flutter: ^2.14.2
 
 dev_dependencies:
   flutter_test:
@@ -25,20 +28,252 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+\n--- END OF FILE: ./pubspec.yaml ---\n\n
+--- START OF FILE: ./android/app/src/debug/AndroidManifest.xml ---
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+</manifest>
+\n--- END OF FILE: ./android/app/src/debug/AndroidManifest.xml ---\n\n
+--- START OF FILE: ./android/app/src/profile/AndroidManifest.xml ---
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+</manifest>
+\n--- END OF FILE: ./android/app/src/profile/AndroidManifest.xml ---\n\n
+--- START OF FILE: ./android/app/src/main/res/drawable/launch_background.xml ---
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modify this file to customize your launch splash screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/white" />
 
-============= analysis_options.yaml ===
-include: package:flutter_lints/flutter.yaml
+    <!-- You can insert your own image assets here -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/launch_image" />
+    </item> -->
+</layer-list>
+\n--- END OF FILE: ./android/app/src/main/res/drawable/launch_background.xml ---\n\n
+--- START OF FILE: ./android/app/src/main/res/drawable-v21/launch_background.xml ---
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modify this file to customize your launch splash screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="?android:colorBackground" />
 
-============= android/app/src/main/AndroidManifest.xml ===
+    <!-- You can insert your own image assets here -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/launch_image" />
+    </item> -->
+</layer-list>
+\n--- END OF FILE: ./android/app/src/main/res/drawable-v21/launch_background.xml ---\n\n
+--- START OF FILE: ./android/app/src/main/res/values/styles.xml ---
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+\n--- END OF FILE: ./android/app/src/main/res/values/styles.xml ---\n\n
+--- START OF FILE: ./android/app/src/main/res/values-night/styles.xml ---
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is on -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+\n--- END OF FILE: ./android/app/src/main/res/values-night/styles.xml ---\n\n
+--- START OF FILE: ./android/app/src/main/kotlin/by/fortydegree/gpxmocklocation40/MainActivity.kt ---
+
+package by.fortydegree.gpxmocklocation40
+
+import android.content.Context
+import android.location.Location
+import android.location.LocationManager
+import android.os.Build
+import android.os.Bundle
+import android.os.SystemClock
+import androidx.annotation.NonNull
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity: FlutterActivity() {
+    private val CHANNEL = "com.example.gpx_mock_location/mock_location"
+    private var locationManager: LocationManager? = null
+    private val MOCK_PROVIDER = "gps"
+
+    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        try {
+            locationManager?.addTestProvider(
+                MOCK_PROVIDER,
+                false,  // requiresNetwork
+                true,   // requiresSatellite
+                false,  // requiresCell
+                false,  // hasMonetaryCost
+                true,   // supportsAltitude
+                true,   // supportsSpeed
+                true,   // supportsBearing
+                1,      // powerRequirement
+                2       // accuracy
+            )
+            locationManager?.setTestProviderEnabled(MOCK_PROVIDER, true)
+        } catch (e: SecurityException) {
+            // This exception will be thrown if this app is not selected in developer settings
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {
+            call, result ->
+            if (call.method == "setMockLocation") {
+                try {
+                    val lat = call.argument<Double>("lat")!!
+                    val lon = call.argument<Double>("lon")!!
+                    val speed = call.argument<Double>("speed")!!
+                    val altitude = call.argument<Double>("altitude")!!
+                    val bearing = call.argument<Double>("bearing")!!
+                    val satellites = call.argument<Int>("satellites")!!
+
+                    val mockLocation = Location(MOCK_PROVIDER)
+                    mockLocation.latitude = lat
+                    mockLocation.longitude = lon
+                    mockLocation.altitude = altitude
+                    mockLocation.speed = speed.toFloat()
+                    mockLocation.bearing = bearing.toFloat()
+                    mockLocation.accuracy = 3.0f
+                    mockLocation.verticalAccuracyMeters = 5.0f
+                    mockLocation.speedAccuracyMetersPerSecond = 0.5f
+                    mockLocation.bearingAccuracyDegrees = 5.0f
+                    mockLocation.time = System.currentTimeMillis()
+                    mockLocation.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+
+                    val extras = Bundle()
+                    extras.putInt("satellites", satellites)
+                    mockLocation.extras = extras
+
+                    locationManager?.setTestProviderLocation(MOCK_PROVIDER, mockLocation)
+                    result.success(null)
+                } catch (e: Exception) {
+                    result.error("MOCK_LOCATION_ERROR", "Failed to set mock location", e.toString())
+                }
+            } else {
+                result.notImplemented()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            locationManager?.removeTestProvider(MOCK_PROVIDER)
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+}
+\n--- END OF FILE: ./android/app/src/main/kotlin/by/fortydegree/gpxmocklocation40/MainActivity.kt ---\n\n
+--- START OF FILE: ./android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java ---
+package io.flutter.plugins;
+
+import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
+import io.flutter.Log;
+
+import io.flutter.embedding.engine.FlutterEngine;
+
+/**
+ * Generated file. Do not edit.
+ * This file is generated by the Flutter tool based on the
+ * plugins that support the Android platform.
+ */
+@Keep
+public final class GeneratedPluginRegistrant {
+  private static final String TAG = "GeneratedPluginRegistrant";
+  public static void registerWith(@NonNull FlutterEngine flutterEngine) {
+    try {
+      flutterEngine.getPlugins().add(new com.mr.flutter.plugin.filepicker.FilePickerPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin file_picker, com.mr.flutter.plugin.filepicker.FilePickerPlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.flutter_plugin_android_lifecycle.FlutterAndroidLifecyclePlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin flutter_plugin_android_lifecycle, io.flutter.plugins.flutter_plugin_android_lifecycle.FlutterAndroidLifecyclePlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.googlemaps.GoogleMapsPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin google_maps_flutter_android, io.flutter.plugins.googlemaps.GoogleMapsPlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new com.lyokone.location.LocationPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin location, com.lyokone.location.LocationPlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.pathprovider.PathProviderPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin path_provider_android, io.flutter.plugins.pathprovider.PathProviderPlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new com.baseflow.permissionhandler.PermissionHandlerPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin permission_handler_android, com.baseflow.permissionhandler.PermissionHandlerPlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new io.flutter.plugins.sharedpreferences.SharedPreferencesPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin shared_preferences_android, io.flutter.plugins.sharedpreferences.SharedPreferencesPlugin", e);
+    }
+  }
+}
+\n--- END OF FILE: ./android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java ---\n\n
+--- START OF FILE: ./android/app/src/main/AndroidManifest.xml ---
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION" tools:ignore="MockLocation" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <application
         android:label="GPX Mock Location 40"
         android:name="${applicationName}"
+        android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -78,10 +313,1031 @@ include: package:flutter_lints/flutter.yaml
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT"/>
+            <data android:mimeType="*/*"/>
+        </intent>
     </queries>
 </manifest>
+\n--- END OF FILE: ./android/app/src/main/AndroidManifest.xml ---\n\n
+--- START OF FILE: ./macos/RunnerTests/RunnerTests.swift ---
+import Cocoa
+import FlutterMacOS
+import XCTest
 
-============= lib/features/idle/idle_screen.dart ===
+class RunnerTests: XCTestCase {
+
+  func testExample() {
+    // If you add code to the Runner application, consider adding tests here.
+    // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+  }
+
+}
+\n--- END OF FILE: ./macos/RunnerTests/RunnerTests.swift ---\n\n
+--- START OF FILE: ./macos/Flutter/GeneratedPluginRegistrant.swift ---
+//
+//  Generated file. Do not edit.
+//
+
+import FlutterMacOS
+import Foundation
+
+import file_picker
+import location
+import path_provider_foundation
+import shared_preferences_foundation
+
+func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
+  LocationPlugin.register(with: registry.registrar(forPlugin: "LocationPlugin"))
+  PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
+  SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
+}
+\n--- END OF FILE: ./macos/Flutter/GeneratedPluginRegistrant.swift ---\n\n
+--- START OF FILE: ./macos/Runner/AppDelegate.swift ---
+import Cocoa
+import FlutterMacOS
+
+@main
+class AppDelegate: FlutterAppDelegate {
+  override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    return true
+  }
+
+  override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+    return true
+  }
+}
+\n--- END OF FILE: ./macos/Runner/AppDelegate.swift ---\n\n
+--- START OF FILE: ./macos/Runner/MainFlutterWindow.swift ---
+import Cocoa
+import FlutterMacOS
+
+class MainFlutterWindow: NSWindow {
+  override func awakeFromNib() {
+    let flutterViewController = FlutterViewController()
+    let windowFrame = self.frame
+    self.contentViewController = flutterViewController
+    self.setFrame(windowFrame, display: true)
+
+    RegisterGeneratedPlugins(registry: flutterViewController)
+
+    super.awakeFromNib()
+  }
+}
+\n--- END OF FILE: ./macos/Runner/MainFlutterWindow.swift ---\n\n
+--- START OF FILE: ./macos/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json ---
+{
+  "images" : [
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "app_icon_16.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "app_icon_32.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "app_icon_32.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "app_icon_64.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "app_icon_128.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "app_icon_256.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "app_icon_256.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "app_icon_512.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "app_icon_512.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "app_icon_1024.png",
+      "scale" : "2x"
+    }
+  ],
+  "info" : {
+    "version" : 1,
+    "author" : "xcode"
+  }
+}
+\n--- END OF FILE: ./macos/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json ---\n\n
+--- START OF FILE: ./test/widget_test.dart ---
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:gpx_mock_location/main.dart';
+
+void main() {
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
+
+    // Verify that our counter starts at 0.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
+
+    // Tap the '+' icon and trigger a frame.
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump();
+
+    // Verify that our counter has incremented.
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
+  });
+}
+\n--- END OF FILE: ./test/widget_test.dart ---\n\n
+--- START OF FILE: ./analysis_options.yaml ---
+include: package:flutter_lints/flutter.yaml
+\n--- END OF FILE: ./analysis_options.yaml ---\n\n
+--- START OF FILE: ./linux/flutter/generated_plugin_registrant.h ---
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#ifndef GENERATED_PLUGIN_REGISTRANT_
+#define GENERATED_PLUGIN_REGISTRANT_
+
+#include <flutter_linux/flutter_linux.h>
+
+// Registers Flutter plugins.
+void fl_register_plugins(FlPluginRegistry* registry);
+
+#endif  // GENERATED_PLUGIN_REGISTRANT_
+\n--- END OF FILE: ./linux/flutter/generated_plugin_registrant.h ---\n\n
+--- START OF FILE: ./linux/runner/my_application.h ---
+#ifndef FLUTTER_MY_APPLICATION_H_
+#define FLUTTER_MY_APPLICATION_H_
+
+#include <gtk/gtk.h>
+
+G_DECLARE_FINAL_TYPE(MyApplication, my_application, MY, APPLICATION,
+                     GtkApplication)
+
+/**
+ * my_application_new:
+ *
+ * Creates a new Flutter-based application.
+ *
+ * Returns: a new #MyApplication.
+ */
+MyApplication* my_application_new();
+
+#endif  // FLUTTER_MY_APPLICATION_H_
+\n--- END OF FILE: ./linux/runner/my_application.h ---\n\n
+--- START OF FILE: ./web/manifest.json ---
+{
+    "name": "myapp",
+    "short_name": "myapp",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0175C2",
+    "theme_color": "#0175C2",
+    "description": "A new Flutter project.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
+\n--- END OF FILE: ./web/manifest.json ---\n\n
+--- START OF FILE: ./web/index.html ---
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="myapp">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>myapp</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
+\n--- END OF FILE: ./web/index.html ---\n\n
+--- START OF FILE: ./windows/flutter/generated_plugin_registrant.h ---
+//
+//  Generated file. Do not edit.
+//
+
+// clang-format off
+
+#ifndef GENERATED_PLUGIN_REGISTRANT_
+#define GENERATED_PLUGIN_REGISTRANT_
+
+#include <flutter/plugin_registry.h>
+
+// Registers Flutter plugins.
+void RegisterPlugins(flutter::PluginRegistry* registry);
+
+#endif  // GENERATED_PLUGIN_REGISTRANT_
+\n--- END OF FILE: ./windows/flutter/generated_plugin_registrant.h ---\n\n
+--- START OF FILE: ./windows/runner/flutter_window.cpp ---
+#include "flutter_window.h"
+
+#include <optional>
+
+#include "flutter/generated_plugin_registrant.h"
+
+FlutterWindow::FlutterWindow(const flutter::DartProject& project)
+    : project_(project) {}
+
+FlutterWindow::~FlutterWindow() {}
+
+bool FlutterWindow::OnCreate() {
+  if (!Win32Window::OnCreate()) {
+    return false;
+  }
+
+  RECT frame = GetClientArea();
+
+  // The size here must match the window dimensions to avoid unnecessary surface
+  // creation / destruction in the startup path.
+  flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
+      frame.right - frame.left, frame.bottom - frame.top, project_);
+  // Ensure that basic setup of the controller was successful.
+  if (!flutter_controller_->engine() || !flutter_controller_->view()) {
+    return false;
+  }
+  RegisterPlugins(flutter_controller_->engine());
+  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  flutter_controller_->engine()->SetNextFrameCallback([&]() {
+    this->Show();
+  });
+
+  // Flutter can complete the first frame before the "show window" callback is
+  // registered. The following call ensures a frame is pending to ensure the
+  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  flutter_controller_->ForceRedraw();
+
+  return true;
+}
+
+void FlutterWindow::OnDestroy() {
+  if (flutter_controller_) {
+    flutter_controller_ = nullptr;
+  }
+
+  Win32Window::OnDestroy();
+}
+
+LRESULT
+FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
+                              WPARAM const wparam,
+                              LPARAM const lparam) noexcept {
+  // Give Flutter, including plugins, an opportunity to handle window messages.
+  if (flutter_controller_) {
+    std::optional<LRESULT> result =
+        flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,
+                                                      lparam);
+    if (result) {
+      return *result;
+    }
+  }
+
+  switch (message) {
+    case WM_FONTCHANGE:
+      flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+  }
+
+  return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+\n--- END OF FILE: ./windows/runner/flutter_window.cpp ---\n\n
+--- START OF FILE: ./windows/runner/utils.h ---
+#ifndef RUNNER_UTILS_H_
+#define RUNNER_UTILS_H_
+
+#include <string>
+#include <vector>
+
+// Creates a console for the process, and redirects stdout and stderr to
+// it for both the runner and the Flutter library.
+void CreateAndAttachConsole();
+
+// Takes a null-terminated wchar_t* encoded in UTF-16 and returns a std::string
+// encoded in UTF-8. Returns an empty std::string on failure.
+std::string Utf8FromUtf16(const wchar_t* utf16_string);
+
+// Gets the command line arguments passed in as a std::vector<std::string>,
+// encoded in UTF-8. Returns an empty std::vector<std::string> on failure.
+std::vector<std::string> GetCommandLineArguments();
+
+#endif  // RUNNER_UTILS_H_
+\n--- END OF FILE: ./windows/runner/utils.h ---\n\n
+--- START OF FILE: ./windows/runner/win32_window.cpp ---
+#include "win32_window.h"
+
+#include <dwmapi.h>
+#include <flutter_windows.h>
+
+#include "resource.h"
+
+namespace {
+
+/// Window attribute that enables dark mode window decorations.
+///
+/// Redefined in case the developer's machine has a Windows SDK older than
+/// version 10.0.22000.0.
+/// See: https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+
+constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+
+/// Registry key for app theme preference.
+///
+/// A value of 0 indicates apps should use dark mode. A non-zero or missing
+/// value indicates apps should use light mode.
+constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
+  L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
+
+// The number of Win32Window objects that currently exist.
+static int g_active_window_count = 0;
+
+using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
+
+// Scale helper to convert logical scaler values to physical using passed in
+// scale factor
+int Scale(int source, double scale_factor) {
+  return static_cast<int>(source * scale_factor);
+}
+
+// Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
+// This API is only needed for PerMonitor V1 awareness mode.
+void EnableFullDpiSupportIfAvailable(HWND hwnd) {
+  HMODULE user32_module = LoadLibraryA("User32.dll");
+  if (!user32_module) {
+    return;
+  }
+  auto enable_non_client_dpi_scaling =
+      reinterpret_cast<EnableNonClientDpiScaling*>(
+          GetProcAddress(user32_module, "EnableNonClientDpiScaling"));
+  if (enable_non_client_dpi_scaling != nullptr) {
+    enable_non_client_dpi_scaling(hwnd);
+  }
+  FreeLibrary(user32_module);
+}
+
+}  // namespace
+
+// Manages the Win32Window's window class registration.
+class WindowClassRegistrar {
+ public:
+  ~WindowClassRegistrar() = default;
+
+  // Returns the singleton registrar instance.
+  static WindowClassRegistrar* GetInstance() {
+    if (!instance_) {
+      instance_ = new WindowClassRegistrar();
+    }
+    return instance_;
+  }
+
+  // Returns the name of the window class, registering the class if it hasn't
+  // previously been registered.
+  const wchar_t* GetWindowClass();
+
+  // Unregisters the window class. Should only be called if there are no
+  // instances of the window.
+  void UnregisterWindowClass();
+
+ private:
+  WindowClassRegistrar() = default;
+
+  static WindowClassRegistrar* instance_;
+
+  bool class_registered_ = false;
+};
+
+WindowClassRegistrar* WindowClassRegistrar::instance_ = nullptr;
+
+const wchar_t* WindowClassRegistrar::GetWindowClass() {
+  if (!class_registered_) {
+    WNDCLASS window_class{};
+    window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    window_class.lpszClassName = kWindowClassName;
+    window_class.style = CS_HREDRAW | CS_VREDRAW;
+    window_class.cbClsExtra = 0;
+    window_class.cbWndExtra = 0;
+    window_class.hInstance = GetModuleHandle(nullptr);
+    window_class.hIcon =
+        LoadIcon(window_class.hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+    window_class.hbrBackground = 0;
+    window_class.lpszMenuName = nullptr;
+    window_class.lpfnWndProc = Win32Window::WndProc;
+    RegisterClass(&window_class);
+    class_registered_ = true;
+  }
+  return kWindowClassName;
+}
+
+void WindowClassRegistrar::UnregisterWindowClass() {
+  UnregisterClass(kWindowClassName, nullptr);
+  class_registered_ = false;
+}
+
+Win32Window::Win32Window() {
+  ++g_active_window_count;
+}
+
+Win32Window::~Win32Window() {
+  --g_active_window_count;
+  Destroy();
+}
+
+bool Win32Window::Create(const std::wstring& title,
+                         const Point& origin,
+                         const Size& size) {
+  Destroy();
+
+  const wchar_t* window_class =
+      WindowClassRegistrar::GetInstance()->GetWindowClass();
+
+  const POINT target_point = {static_cast<LONG>(origin.x),
+                              static_cast<LONG>(origin.y)};
+  HMONITOR monitor = MonitorFromPoint(target_point, MONITOR_DEFAULTTONEAREST);
+  UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  double scale_factor = dpi / 96.0;
+
+  HWND window = CreateWindow(
+      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
+      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      nullptr, nullptr, GetModuleHandle(nullptr), this);
+
+  if (!window) {
+    return false;
+  }
+
+  UpdateTheme(window);
+
+  return OnCreate();
+}
+
+bool Win32Window::Show() {
+  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+}
+
+// static
+LRESULT CALLBACK Win32Window::WndProc(HWND const window,
+                                      UINT const message,
+                                      WPARAM const wparam,
+                                      LPARAM const lparam) noexcept {
+  if (message == WM_NCCREATE) {
+    auto window_struct = reinterpret_cast<CREATESTRUCT*>(lparam);
+    SetWindowLongPtr(window, GWLP_USERDATA,
+                     reinterpret_cast<LONG_PTR>(window_struct->lpCreateParams));
+
+    auto that = static_cast<Win32Window*>(window_struct->lpCreateParams);
+    EnableFullDpiSupportIfAvailable(window);
+    that->window_handle_ = window;
+  } else if (Win32Window* that = GetThisFromHandle(window)) {
+    return that->MessageHandler(window, message, wparam, lparam);
+  }
+
+  return DefWindowProc(window, message, wparam, lparam);
+}
+
+LRESULT
+Win32Window::MessageHandler(HWND hwnd,
+                            UINT const message,
+                            WPARAM const wparam,
+                            LPARAM const lparam) noexcept {
+  switch (message) {
+    case WM_DESTROY:
+      window_handle_ = nullptr;
+      Destroy();
+      if (quit_on_close_) {
+        PostQuitMessage(0);
+      }
+      return 0;
+
+    case WM_DPICHANGED: {
+      auto newRectSize = reinterpret_cast<RECT*>(lparam);
+      LONG newWidth = newRectSize->right - newRectSize->left;
+      LONG newHeight = newRectSize->bottom - newRectSize->top;
+
+      SetWindowPos(hwnd, nullptr, newRectSize->left, newRectSize->top, newWidth,
+                   newHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+      return 0;
+    }
+    case WM_SIZE: {
+      RECT rect = GetClientArea();
+      if (child_content_ != nullptr) {
+        // Size and position the child window.
+        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
+                   rect.bottom - rect.top, TRUE);
+      }
+      return 0;
+    }
+
+    case WM_ACTIVATE:
+      if (child_content_ != nullptr) {
+        SetFocus(child_content_);
+      }
+      return 0;
+
+    case WM_DWMCOLORIZATIONCOLORCHANGED:
+      UpdateTheme(hwnd);
+      return 0;
+  }
+
+  return DefWindowProc(window_handle_, message, wparam, lparam);
+}
+
+void Win32Window::Destroy() {
+  OnDestroy();
+
+  if (window_handle_) {
+    DestroyWindow(window_handle_);
+    window_handle_ = nullptr;
+  }
+  if (g_active_window_count == 0) {
+    WindowClassRegistrar::GetInstance()->UnregisterWindowClass();
+  }
+}
+
+Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
+  return reinterpret_cast<Win32Window*>(
+      GetWindowLongPtr(window, GWLP_USERDATA));
+}
+
+void Win32Window::SetChildContent(HWND content) {
+  child_content_ = content;
+  SetParent(content, window_handle_);
+  RECT frame = GetClientArea();
+
+  MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
+             frame.bottom - frame.top, true);
+
+  SetFocus(child_content_);
+}
+
+RECT Win32Window::GetClientArea() {
+  RECT frame;
+  GetClientRect(window_handle_, &frame);
+  return frame;
+}
+
+HWND Win32Window::GetHandle() {
+  return window_handle_;
+}
+
+void Win32Window::SetQuitOnClose(bool quit_on_close) {
+  quit_on_close_ = quit_on_close;
+}
+
+bool Win32Window::OnCreate() {
+  // No-op; provided for subclasses.
+  return true;
+}
+
+void Win32Window::OnDestroy() {
+  // No-op; provided for subclasses.
+}
+
+void Win32Window::UpdateTheme(HWND const window) {
+  DWORD light_mode;
+  DWORD light_mode_size = sizeof(light_mode);
+  LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
+                               kGetPreferredBrightnessRegValue,
+                               RRF_RT_REG_DWORD, nullptr, &light_mode,
+                               &light_mode_size);
+
+  if (result == ERROR_SUCCESS) {
+    BOOL enable_dark_mode = light_mode == 0;
+    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                          &enable_dark_mode, sizeof(enable_dark_mode));
+  }
+}
+\n--- END OF FILE: ./windows/runner/win32_window.cpp ---\n\n
+--- START OF FILE: ./windows/runner/resource.h ---
+//{{NO_DEPENDENCIES}}
+// Microsoft Visual C++ generated include file.
+// Used by Runner.rc
+//
+#define IDI_APP_ICON                    101
+
+// Next default values for new objects
+//
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+#define _APS_NEXT_RESOURCE_VALUE        102
+#define _APS_NEXT_COMMAND_VALUE         40001
+#define _APS_NEXT_CONTROL_VALUE         1001
+#define _APS_NEXT_SYMED_VALUE           101
+#endif
+#endif
+\n--- END OF FILE: ./windows/runner/resource.h ---\n\n
+--- START OF FILE: ./windows/runner/win32_window.h ---
+#ifndef RUNNER_WIN32_WINDOW_H_
+#define RUNNER_WIN32_WINDOW_H_
+
+#include <windows.h>
+
+#include <functional>
+#include <memory>
+#include <string>
+
+// A class abstraction for a high DPI-aware Win32 Window. Intended to be
+// inherited from by classes that wish to specialize with custom
+// rendering and input handling
+class Win32Window {
+ public:
+  struct Point {
+    unsigned int x;
+    unsigned int y;
+    Point(unsigned int x, unsigned int y) : x(x), y(y) {}
+  };
+
+  struct Size {
+    unsigned int width;
+    unsigned int height;
+    Size(unsigned int width, unsigned int height)
+        : width(width), height(height) {}
+  };
+
+  Win32Window();
+  virtual ~Win32Window();
+
+  // Creates a win32 window with |title| that is positioned and sized using
+  // |origin| and |size|. New windows are created on the default monitor. Window
+  // sizes are specified to the OS in physical pixels, hence to ensure a
+  // consistent size this function will scale the inputted width and height as
+  // as appropriate for the default monitor. The window is invisible until
+  // |Show| is called. Returns true if the window was created successfully.
+  bool Create(const std::wstring& title, const Point& origin, const Size& size);
+
+  // Show the current window. Returns true if the window was successfully shown.
+  bool Show();
+
+  // Release OS resources associated with window.
+  void Destroy();
+
+  // Inserts |content| into the window tree.
+  void SetChildContent(HWND content);
+
+  // Returns the backing Window handle to enable clients to set icon and other
+  // window properties. Returns nullptr if the window has been destroyed.
+  HWND GetHandle();
+
+  // If true, closing this window will quit the application.
+  void SetQuitOnClose(bool quit_on_close);
+
+  // Return a RECT representing the bounds of the current client area.
+  RECT GetClientArea();
+
+ protected:
+  // Processes and route salient window messages for mouse handling,
+  // size change and DPI. Delegates handling of these to member overloads that
+  // inheriting classes can handle.
+  virtual LRESULT MessageHandler(HWND window,
+                                 UINT const message,
+                                 WPARAM const wparam,
+                                 LPARAM const lparam) noexcept;
+
+  // Called when CreateAndShow is called, allowing subclass window-related
+  // setup. Subclasses should return false if setup fails.
+  virtual bool OnCreate();
+
+  // Called when Destroy is called.
+  virtual void OnDestroy();
+
+ private:
+  friend class WindowClassRegistrar;
+
+  // OS callback called by message pump. Handles the WM_NCCREATE message which
+  // is passed when the non-client area is being created and enables automatic
+  // non-client DPI scaling so that the non-client area automatically
+  // responds to changes in DPI. All other messages are handled by
+  // MessageHandler.
+  static LRESULT CALLBACK WndProc(HWND const window,
+                                  UINT const message,
+                                  WPARAM const wparam,
+                                  LPARAM const lparam) noexcept;
+
+  // Retrieves a class instance pointer for |window|
+  static Win32Window* GetThisFromHandle(HWND const window) noexcept;
+
+  // Update the window frame's theme to match the system theme.
+  static void UpdateTheme(HWND const window);
+
+  bool quit_on_close_ = false;
+
+  // window handle for top level window.
+  HWND window_handle_ = nullptr;
+
+  // window handle for hosted content.
+  HWND child_content_ = nullptr;
+};
+
+#endif  // RUNNER_WIN32_WINDOW_H_
+\n--- END OF FILE: ./windows/runner/win32_window.h ---\n\n
+--- START OF FILE: ./windows/runner/main.cpp ---
+#include <flutter/dart_project.h>
+#include <flutter/flutter_view_controller.h>
+#include <windows.h>
+
+#include "flutter_window.h"
+#include "utils.h"
+
+int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
+                      _In_ wchar_t *command_line, _In_ int show_command) {
+  // Attach to console when present (e.g., 'flutter run') or create a
+  // new console when running with a debugger.
+  if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
+    CreateAndAttachConsole();
+  }
+
+  // Initialize COM, so that it is available for use in the library and/or
+  // plugins.
+  ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
+  flutter::DartProject project(L"data");
+
+  std::vector<std::string> command_line_arguments =
+      GetCommandLineArguments();
+
+  project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
+
+  FlutterWindow window(project);
+  Win32Window::Point origin(10, 10);
+  Win32Window::Size size(1280, 720);
+  if (!window.Create(L"myapp", origin, size)) {
+    return EXIT_FAILURE;
+  }
+  window.SetQuitOnClose(true);
+
+  ::MSG msg;
+  while (::GetMessage(&msg, nullptr, 0, 0)) {
+    ::TranslateMessage(&msg);
+    ::DispatchMessage(&msg);
+  }
+
+  ::CoUninitialize();
+  return EXIT_SUCCESS;
+}
+\n--- END OF FILE: ./windows/runner/main.cpp ---\n\n
+--- START OF FILE: ./windows/runner/utils.cpp ---
+#include "utils.h"
+
+#include <flutter_windows.h>
+#include <io.h>
+#include <stdio.h>
+#include <windows.h>
+
+#include <iostream>
+
+void CreateAndAttachConsole() {
+  if (::AllocConsole()) {
+    FILE *unused;
+    if (freopen_s(&unused, "CONOUT$", "w", stdout)) {
+      _dup2(_fileno(stdout), 1);
+    }
+    if (freopen_s(&unused, "CONOUT$", "w", stderr)) {
+      _dup2(_fileno(stdout), 2);
+    }
+    std::ios::sync_with_stdio();
+    FlutterDesktopResyncOutputStreams();
+  }
+}
+
+std::vector<std::string> GetCommandLineArguments() {
+  // Convert the UTF-16 command line arguments to UTF-8 for the Engine to use.
+  int argc;
+  wchar_t** argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+  if (argv == nullptr) {
+    return std::vector<std::string>();
+  }
+
+  std::vector<std::string> command_line_arguments;
+
+  // Skip the first argument as it's the binary name.
+  for (int i = 1; i < argc; i++) {
+    command_line_arguments.push_back(Utf8FromUtf16(argv[i]));
+  }
+
+  ::LocalFree(argv);
+
+  return command_line_arguments;
+}
+
+std::string Utf8FromUtf16(const wchar_t* utf16_string) {
+  if (utf16_string == nullptr) {
+    return std::string();
+  }
+  unsigned int target_length = ::WideCharToMultiByte(
+      CP_UTF8, WC_ERR_INVALID_CHARS, utf16_string,
+      -1, nullptr, 0, nullptr, nullptr)
+    -1; // remove the trailing null character
+  int input_length = (int)wcslen(utf16_string);
+  std::string utf8_string;
+  if (target_length == 0 || target_length > utf8_string.max_size()) {
+    return utf8_string;
+  }
+  utf8_string.resize(target_length);
+  int converted_length = ::WideCharToMultiByte(
+      CP_UTF8, WC_ERR_INVALID_CHARS, utf16_string,
+      input_length, utf8_string.data(), target_length, nullptr, nullptr);
+  if (converted_length == 0) {
+    return std::string();
+  }
+  return utf8_string;
+}
+\n--- END OF FILE: ./windows/runner/utils.cpp ---\n\n
+--- START OF FILE: ./windows/runner/flutter_window.h ---
+#ifndef RUNNER_FLUTTER_WINDOW_H_
+#define RUNNER_FLUTTER_WINDOW_H_
+
+#include <flutter/dart_project.h>
+#include <flutter/flutter_view_controller.h>
+
+#include <memory>
+
+#include "win32_window.h"
+
+// A window that does nothing but host a Flutter view.
+class FlutterWindow : public Win32Window {
+ public:
+  // Creates a new FlutterWindow hosting a Flutter view running |project|.
+  explicit FlutterWindow(const flutter::DartProject& project);
+  virtual ~FlutterWindow();
+
+ protected:
+  // Win32Window:
+  bool OnCreate() override;
+  void OnDestroy() override;
+  LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
+                         LPARAM const lparam) noexcept override;
+
+ private:
+  // The project to run.
+  flutter::DartProject project_;
+
+  // The Flutter instance hosted by this window.
+  std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+};
+
+#endif  // RUNNER_FLUTTER_WINDOW_H_
+\n--- END OF FILE: ./windows/runner/flutter_window.h ---\n\n
+--- START OF FILE: ./lib/main.dart ---
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'features/routes/routes_screen.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+final _router = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomeScreen(),
+      routes: [
+        GoRoute(
+          path: 'routes',
+          builder: (context, state) => const RoutesScreen(),
+        ),
+        // Данный маршрут больше не используется для навигации,
+        // так как MapScreen открывается из RoutesScreen через MaterialPageRoute
+        // Но я оставлю его для возможного использования в будущем.
+        GoRoute(
+          path: 'map',
+          // Для прямого открытия карты потребуется передача параметра.
+          // Этот код потребует рефакторинга, если мы решим так делать.
+          builder: (context, state) => const Scaffold(
+            body: Center(
+              child: Text('Карта не может быть отображена без маршрута'),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ],
+);
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      routerConfig: _router,
+      title: 'GPX Viewer',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const RoutesScreen(); // Просто отображаем экран маршрутов
+  }
+}
+\n--- END OF FILE: ./lib/main.dart ---\n\n
+--- START OF FILE: ./lib/features/idle/idle_screen.dart ---
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -149,114 +1405,835 @@ class IdleScreen extends StatelessWidget {
     );
   }
 }
+\n--- END OF FILE: ./lib/features/idle/idle_screen.dart ---\n\n
+--- START OF FILE: ./lib/features/map/map_screen.dart ---
+// ignore_for_file: avoid_print
 
-============= lib/features/map/map_screen.dart ===
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:location/location.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../routes/models/gpx_route.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final GpxRoute route;
+
+  const MapScreen({super.key, required this.route});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
 class _MapScreenState extends State<MapScreen> {
+  static const _platform = MethodChannel('com.example.gpx_mock_location/mock_location');
+  static const _prefSpeedKey = 'simulation_speed_kmph';
+
   final MapController _mapController = MapController();
-  final Location _location = Location();
+  
   LatLng? _currentLocation;
-  bool _isLocationServiceEnabled = false;
-  PermissionStatus _permissionStatus = PermissionStatus.denied;
+  double? _currentAltitude;
+  double? _currentBearing;
+  int? _currentSatellites;
+
+  Timer? _simulationTimer;
+  bool _isSimulating = false;
+
+  int _currentSegmentIndex = 0;
+  double _distanceCoveredOnSegment = 0.0;
+  double _simulationSpeedKmph = 50.0;
+  final Distance _distance = const Distance();
 
   @override
   void initState() {
     super.initState();
-    _initializeLocation();
+    _loadSpeed();
+
+    if (widget.route.points.isNotEmpty) {
+        final firstPoint = widget.route.points.first;
+      _currentLocation = LatLng(firstPoint.wpt.lat ?? 0.0, firstPoint.wpt.lon ?? 0.0);
+      _currentAltitude = firstPoint.wpt.ele ?? 0.0;
+      _currentBearing = firstPoint.course ?? 0.0;
+      _currentSatellites = firstPoint.satellites ?? 23;
+    }
   }
 
-  Future<void> _initializeLocation() async {
-    _isLocationServiceEnabled = await _location.serviceEnabled();
-    if (!_isLocationServiceEnabled) {
-      _isLocationServiceEnabled = await _location.requestService();
-      if (!_isLocationServiceEnabled) {
-        return;
-      }
-    }
-
-    _permissionStatus = await _location.hasPermission();
-    if (_permissionStatus == PermissionStatus.denied) {
-      _permissionStatus = await _location.requestPermission();
-      if (_permissionStatus != PermissionStatus.granted) {
-        return;
-      }
-    }
-
-    // Get the initial location
-    final LocationData initialLocation = await _location.getLocation();
+  Future<void> _loadSpeed() async {
+    final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _currentLocation = LatLng(initialLocation.latitude, initialLocation.longitude);
+        _simulationSpeedKmph = prefs.getDouble(_prefSpeedKey) ?? 50.0;
       });
     }
+  }
 
+  Future<void> _saveSpeed(double speed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_prefSpeedKey, speed);
+  }
 
-    _location.onLocationChanged.listen((LocationData currentLocation) {
-      if (mounted) {
-        setState(() {
-          _currentLocation = LatLng(currentLocation.latitude, currentLocation.longitude);
-          if (_currentLocation != null) {
-            _mapController.move(_currentLocation!, 15.0);
+  @override
+  void dispose() {
+    _simulationTimer?.cancel();
+    super.dispose();
+  }
+
+  void _zoomIn() {
+    _mapController.move(_mapController.camera.center, _mapController.camera.zoom + 1);
+  }
+
+  void _zoomOut() {
+    _mapController.move(_mapController.camera.center, _mapController.camera.zoom - 1);
+  }
+
+  void _centerMap() {
+    if (_isSimulating && _currentLocation != null) {
+      _mapController.move(_currentLocation!, _mapController.camera.zoom);
+    } else if (widget.route.points.isNotEmpty) {
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(widget.route.points.map((p) => LatLng(p.wpt.lat!, p.wpt.lon!)).toList()),
+          padding: const EdgeInsets.all(50.0),
+        ),
+      );
+    }
+  }
+
+  Future<void> _setMockLocation(LatLng location, double speedKmph, double altitude, double bearing, int satellites) async {
+    try {
+      final speedMps = speedKmph * 1000 / 3600;
+      print('[NATIVE_CALL] setMockLocation: lat=${location.latitude}, lon=${location.longitude}, speed=$speedMps, altitude=$altitude, bearing=$bearing, satellites=$satellites');
+      await _platform.invokeMethod('setMockLocation', {
+        'lat': location.latitude,
+        'lon': location.longitude,
+        'speed': speedMps,
+        'altitude': altitude,
+        'bearing': bearing,
+        'satellites': satellites,
+      });
+    } on PlatformException catch (e) {
+      print("[NATIVE] FAILED to set mock location: '${e.message}'. Check mock location app setting in Developer Options.");
+    }
+  }
+
+  void _simulationTick(Timer timer) {
+    if (!mounted) {
+      timer.cancel();
+      return;
+    }
+    
+    if (_currentSegmentIndex >= widget.route.points.length - 1) {
+      _simulationTimer?.cancel();
+      final lastWaypoint = widget.route.points.last;
+      final lastLocation = LatLng(lastWaypoint.wpt.lat!, lastWaypoint.wpt.lon!);
+
+      setState(() {
+        _isSimulating = false;
+        _currentLocation = lastLocation;
+      });
+
+      _setMockLocation(
+          lastLocation, 
+          0,
+          lastWaypoint.wpt.ele ?? 0,
+          _currentBearing ?? 0,
+          _currentSatellites ?? 23
+      );
+      return;
+    }
+
+    final speedMps = _simulationSpeedKmph * 1000 / 3600;
+    final distanceThisTick = speedMps * 0.1; 
+
+    _distanceCoveredOnSegment += distanceThisTick;
+
+    final startWaypoint = widget.route.points[_currentSegmentIndex];
+    final endWaypoint = widget.route.points[_currentSegmentIndex + 1];
+    final startPoint = LatLng(startWaypoint.wpt.lat!, startWaypoint.wpt.lon!);
+    final endPoint = LatLng(endWaypoint.wpt.lat!, endWaypoint.wpt.lon!);
+    final totalSegmentDistance = _distance(startPoint, endPoint);
+
+    double t = totalSegmentDistance > 0 ? _distanceCoveredOnSegment / totalSegmentDistance : 1.0;
+
+    while (t >= 1.0 && _currentSegmentIndex < widget.route.points.length - 1) {
+        final coveredOnPrev = totalSegmentDistance;
+        _distanceCoveredOnSegment -= coveredOnPrev;
+        _currentSegmentIndex++;
+
+        if (_currentSegmentIndex >= widget.route.points.length - 1) {
+            final endLocation = LatLng(widget.route.points.last.wpt.lat!, widget.route.points.last.wpt.lon!);
+            setState(() { _currentLocation = endLocation; });
+            _setMockLocation(
+                endLocation, 
+                0, 
+                widget.route.points.last.wpt.ele ?? 0,
+                _currentBearing ?? 0,
+                _currentSatellites ?? 23
+            );
+            _simulationTimer?.cancel();
+            setState(() { _isSimulating = false; });
+            return;
+        }
+
+        final newStartWpt = widget.route.points[_currentSegmentIndex];
+        final newEndWpt = widget.route.points[_currentSegmentIndex + 1];
+        final newTotalDist = _distance(LatLng(newStartWpt.wpt.lat!, newStartWpt.wpt.lon!), LatLng(newEndWpt.wpt.lat!, newEndWpt.wpt.lon!));
+        t = newTotalDist > 0 ? _distanceCoveredOnSegment / newTotalDist : 1.0;
+    }
+    
+    final currentStartWpt = widget.route.points[_currentSegmentIndex];
+    final currentEndWpt = widget.route.points[_currentSegmentIndex + 1];
+    
+    final currentStartPoint = LatLng(currentStartWpt.wpt.lat!, currentStartWpt.wpt.lon!);
+    final currentEndPoint = LatLng(currentEndWpt.wpt.lat!, currentEndWpt.wpt.lon!);
+    
+    final newLat = currentStartPoint.latitude + (currentEndPoint.latitude - currentStartPoint.latitude) * t;
+    final newLon = currentStartPoint.longitude + (currentEndPoint.longitude - currentStartPoint.longitude) * t;
+    final newLocation = LatLng(newLat, newLon);
+
+    final newAltitude = currentStartWpt.wpt.ele ?? 234.0;
+
+    final newBearing = currentStartWpt.course ?? _currentBearing ?? 0.0;
+    final newSatellites = currentStartWpt.satellites ?? _currentSatellites ?? 23;
+
+    setState(() {
+      _currentLocation = newLocation;
+      _currentAltitude = newAltitude;
+      _currentBearing = newBearing;
+      _currentSatellites = newSatellites;
+    });
+
+    _setMockLocation(newLocation, _simulationSpeedKmph, newAltitude, newBearing, newSatellites);
+    _mapController.move(newLocation, _mapController.camera.zoom);
+  }
+
+  void _startStopSimulation() {
+    if (widget.route.points.length < 2) return;
+
+    if (_isSimulating) {
+      _simulationTimer?.cancel();
+      if (_currentLocation != null) {
+        _setMockLocation(
+          _currentLocation!, 
+          0,
+          _currentAltitude ?? 0.0,
+          _currentBearing ?? 0.0,
+          _currentSatellites ?? 23
+        ); 
+      }
+      setState(() {
+        _isSimulating = false;
+      });
+    } else {
+      setState(() {
+        if (_currentSegmentIndex >= widget.route.points.length - 1) {
+          _currentSegmentIndex = 0;
+          _distanceCoveredOnSegment = 0.0;
+          final firstPoint = widget.route.points.first;
+          _currentLocation = LatLng(firstPoint.wpt.lat!, firstPoint.wpt.lon!);
+          _currentAltitude = firstPoint.wpt.ele ?? 0.0;
+          _currentBearing = firstPoint.course ?? 0.0;
+          _currentSatellites = firstPoint.satellites ?? 23;
+        }
+        _isSimulating = true;
+      });
+      _simulationTimer = Timer.periodic(const Duration(milliseconds: 100), _simulationTick);
+    }
+  }
+  
+  void _showSpeedInputDialog() {
+    final TextEditingController speedController = TextEditingController(text: _simulationSpeedKmph.toStringAsFixed(0));
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Введите скорость'),
+          content: TextField(
+            controller: speedController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Скорость в км/ч'),
+            autofocus: true,
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Отмена'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                final double? newSpeed = double.tryParse(speedController.text);
+                if (newSpeed != null && newSpeed > 0) {
+                  setState(() {
+                    _simulationSpeedKmph = newSpeed;
+                    _saveSpeed(newSpeed);
+                  });
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final routeLatLngs = widget.route.points.map((p) => LatLng(p.wpt.lat!, p.wpt.lon!)).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.route.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.center_focus_strong),
+            onPressed: _centerMap,
+            tooltip: 'Центрировать',
+          )
+        ],
+      ),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: routeLatLngs.isNotEmpty ? routeLatLngs.first : const LatLng(51.5, -0.09),
+              initialZoom: 13.0,
+              onMapReady: () {
+                Future.delayed(const Duration(milliseconds: 200), _centerMap);
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.example.gpx_mock_location',
+              ),
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: routeLatLngs,
+                    strokeWidth: 4.0,
+                    color: Colors.blue,
+                  ),
+                ],
+              ),
+              if (_currentLocation != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      width: 80.0,
+                      height: 80.0,
+                      point: _currentLocation!,
+                      child: Transform.rotate(
+                        angle: (_currentBearing ?? 0) * (3.141592653589793 / 180),
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.navigation,
+                            color: Colors.red,
+                            size: 30.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16.0,
+            left: 16,
+            child: Material(
+              color: Theme.of(context).cardColor,
+              elevation: 4.0,
+              borderRadius: BorderRadius.circular(8.0),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8.0),
+                onTap: _showSpeedInputDialog,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                  child: Text(
+                    '${_simulationSpeedKmph.toStringAsFixed(0)} км/ч',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: <Widget>[
+          FloatingActionButton(
+            heroTag: "btn_simulation",
+            onPressed: _startStopSimulation,
+            tooltip: _isSimulating ? 'Пауза' : 'Старт',
+            child: Icon(_isSimulating ? Icons.pause : Icons.play_arrow),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: "btn_zoom_in",
+            onPressed: _zoomIn,
+            tooltip: 'Приблизить',
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: "btn_zoom_out",
+            onPressed: _zoomOut,
+            tooltip: 'Отдалить',
+            child: const Icon(Icons.remove),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: "btn_center",
+            onPressed: _centerMap,
+            tooltip: 'Центрировать',
+            child: const Icon(Icons.my_location),
+          ),
+        ],
+      ),
+    );
+  }
+}
+\n--- END OF FILE: ./lib/features/map/map_screen.dart ---\n\n
+--- START OF FILE: ./lib/features/routes/models/gpx_waypoint.dart ---
+import 'package:gpx/gpx.dart';
+
+class GpxWaypoint {
+  final Wpt _wpt;
+  double? course;
+  int? satellites;
+
+  GpxWaypoint(this._wpt, {this.course, this.satellites});
+
+  Wpt get wpt => _wpt;
+
+  // Convert a GpxWaypoint into a Map.
+  Map<String, dynamic> toJson() => {
+        'lat': _wpt.lat,
+        'lon': _wpt.lon,
+        'ele': _wpt.ele,
+        'time': _wpt.time?.toIso8601String(),
+        'name': _wpt.name,
+        'desc': _wpt.desc,
+        'sym': _wpt.sym,
+        'course': course,
+        'satellites': satellites,
+      };
+
+  // Create a GpxWaypoint from a Map.
+  factory GpxWaypoint.fromJson(Map<String, dynamic> json) {
+    final wpt = Wpt()
+      ..lat = json['lat'] as double?
+      ..lon = json['lon'] as double?
+      ..ele = json['ele'] as double?
+      ..time = json['time'] != null ? DateTime.parse(json['time'] as String) : null
+      ..name = json['name'] as String?
+      ..desc = json['desc'] as String?
+      ..sym = json['sym'] as String?;
+    return GpxWaypoint(
+      wpt,
+      course: json['course'] as double?,
+      satellites: json['satellites'] as int?,
+    );
+  }
+}
+\n--- END OF FILE: ./lib/features/routes/models/gpx_waypoint.dart ---\n\n
+--- START OF FILE: ./lib/features/routes/models/gpx_route.dart ---
+import './gpx_waypoint.dart';
+
+// Модель данных для хранения маршрута
+class GpxRoute {
+  String name;
+  List<GpxWaypoint> points;
+
+  GpxRoute({required this.name, required this.points});
+
+  // Convert a GpxRoute into a Map.
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'points': points.map((p) => p.toJson()).toList(),
+      };
+
+  // Create a GpxRoute from a Map.
+  factory GpxRoute.fromJson(Map<String, dynamic> json) {
+    final pointsList = (json['points'] as List)
+        .map((p) => GpxWaypoint.fromJson(p as Map<String, dynamic>))
+        .toList();
+    return GpxRoute(name: json['name'] as String, points: pointsList);
+  }
+}
+\n--- END OF FILE: ./lib/features/routes/models/gpx_route.dart ---\n\n
+--- START OF FILE: ./lib/features/routes/routes_screen.dart ---
+// ignore_for_file: avoid_print
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:gpx/gpx.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../map/map_screen.dart';
+import 'models/gpx_route.dart';
+import 'models/gpx_waypoint.dart';
+
+class RoutesScreen extends StatefulWidget {
+  const RoutesScreen({super.key});
+
+  @override
+  State<RoutesScreen> createState() => _RoutesScreenState();
+}
+
+class _RoutesScreenState extends State<RoutesScreen> {
+  final List<GpxRoute> _routes = [];
+  static const String _routesKey = 'gpx_routes';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final routesJson = prefs.getStringList(_routesKey) ?? [];
+    setState(() {
+      _routes.clear();
+      for (var routeJson in routesJson) {
+        try {
+          final routeMap = jsonDecode(routeJson) as Map<String, dynamic>;
+          _routes.add(GpxRoute.fromJson(routeMap));
+        } catch (e) {
+          if (kDebugMode) {
+            print('[GPX_LOAD] Error decoding route: $e');
           }
-        });
+        }
       }
     });
+    if (kDebugMode) {
+      print('[GPX_LOAD] Loaded ${_routes.length} routes.');
+    }
+  }
+
+  Future<void> _saveRoutes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final routesJson = _routes.map((route) => jsonEncode(route.toJson())).toList();
+    await prefs.setStringList(_routesKey, routesJson);
+    if (kDebugMode) {
+      print('[GPX_SAVE] Saved ${_routes.length} routes.');
+    }
+  }
+
+  Future<void> _deleteRoute(GpxRoute route, int index) async {
+    setState(() {
+      _routes.remove(route);
+    });
+    await _saveRoutes();
+
+    if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Маршрут "${route.name}" удален'),
+                action: SnackBarAction(
+                    label: 'ОТМЕНА',
+                    onPressed: () {
+                        _undoDelete(route, index);
+                    },
+                ),
+            ),
+        );
+    }
+  }
+
+  void _undoDelete(GpxRoute route, int index) {
+    setState(() {
+      _routes.insert(index, route);
+    });
+    _saveRoutes();
+  }
+
+  Future<String?> _getRouteNameFromDialog(String defaultName) async {
+    final controller = TextEditingController(text: defaultName.replaceAll('.gpx', ''));
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Название маршрута'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Введите название'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(controller.text);
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _importGpxFile() async {
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+      if (!status.isGranted) {
+        return;
+      }
+    }
+
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.any);
+
+      if (result == null || result.files.single.path == null) {
+        return;
+      }
+
+      final file = result.files.single;
+
+      if (!file.name.toLowerCase().endsWith('.gpx')) {
+        return;
+      }
+
+      final path = file.path!;
+      final gpxString = await File(path).readAsString();
+      final gpx = GpxReader().fromString(gpxString);
+      final int totalPointsBeforeFiltering;
+      final List<GpxWaypoint> routePoints = [];
+
+      // STRICTLY use track points (<trkpt>) and ignore standalone waypoints (<wpt>).
+      if (gpx.trks.isNotEmpty) {
+        int allPointsCount = 0;
+        for (var track in gpx.trks) {
+          for (var segment in track.trksegs) {
+            allPointsCount += segment.trkpts.length;
+            for (var wpt in segment.trkpts) {
+              wpt.ele = 234;
+               // Add point only if it's the first one or its coordinates are different from the previous one.
+              if (routePoints.isEmpty || routePoints.last.wpt.lat != wpt.lat || routePoints.last.wpt.lon != wpt.lon) {
+                routePoints.add(GpxWaypoint(wpt));
+              }
+            }
+          }
+        }
+        totalPointsBeforeFiltering = allPointsCount;
+      } else {
+        totalPointsBeforeFiltering = 0;
+      }
+
+      if (kDebugMode) {
+        print('[GPX_IMPORT] Filtered track points: ${routePoints.length} (out of $totalPointsBeforeFiltering original points)');
+      }
+
+      if (routePoints.length < 2) {
+        if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('GPX файл не содержит валидного трека (меньше 2 уникальных точек).')),
+            );
+        }
+        return;
+      }
+
+      // Calculate bearing (course) for each point
+      final distance = const Distance();
+      for (var i = 0; i < routePoints.length - 1; i++) {
+        final p1 = routePoints[i];
+        final p2 = routePoints[i + 1];
+        final p1LatLng = LatLng(p1.wpt.lat!, p1.wpt.lon!);
+        final p2LatLng = LatLng(p2.wpt.lat!, p2.wpt.lon!);
+        var bearing = distance.bearing(p1LatLng, p2LatLng);
+        if (bearing < 0) {
+          bearing += 360;
+        }
+        p1.course = bearing;
+      }
+      // For the last point, use the bearing of the previous segment.
+      if (routePoints.length > 1) {
+          routePoints.last.course = routePoints[routePoints.length - 2].course;
+      }
+
+      final routeName = await _getRouteNameFromDialog(file.name);
+      if (routeName == null || routeName.isEmpty) {
+        return;
+      }
+
+      final newRoute = GpxRoute(name: routeName, points: routePoints);
+
+      setState(() {
+        _routes.add(newRoute);
+      });
+      await _saveRoutes();
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('[GPX_IMPORT] An error occurred during the import process: $e');
+      }
+    }
+  }
+
+  Future<void> _exportRoute(GpxRoute route) async {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+        if (!status.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Для экспорта нужно разрешение на доступ к хранилищу.')));
+          }
+          return;
+        }
+      }
+    }
+
+    final gpx = Gpx();
+    gpx.metadata = Metadata(name: route.name);
+    gpx.trks = [
+      Trk(
+        name: route.name,
+        trksegs: [
+          Trkseg(
+            trkpts: route.points.map((p) {
+              final wpt = p.wpt;
+              final extensionsMap = <String, String>{};
+
+              if (p.course != null) {
+                extensionsMap['course'] = p.course.toString();
+              }
+
+              if (extensionsMap.isNotEmpty) {
+                wpt.extensions = extensionsMap;
+              }
+
+              return wpt;
+            }).toList(),
+          ),
+        ],
+      ),
+    ];
+
+    final xmlString = GpxWriter().asString(gpx, pretty: true);
+    final fileName = '${route.name.replaceAll(' ', '_')}.gpx';
+    final Uint8List bytes = utf8.encode(xmlString);
+
+    try {
+      final String? path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Сохранить как GPX',
+        fileName: fileName,
+        bytes: (kIsWeb || Platform.isAndroid || Platform.isIOS) ? bytes : null,
+        type: FileType.custom,
+        allowedExtensions: ['gpx'],
+      );
+
+      if (path == null) {
+        // User canceled the picker
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Экспорт отменен.')),
+          );
+        }
+        return;
+      }
+
+      if (!kIsWeb && !Platform.isAndroid && !Platform.isIOS) {
+        // This is a desktop platform, so we need to write the file manually.
+        final file = File(path);
+        await file.writeAsBytes(bytes);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Маршрут сохранен в: $path')),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('An error occurred during export: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка экспорта: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Map'),
+        title: const Text('Маршруты'),
       ),
-      body: _currentLocation == null
-          ? const Center(child: CircularProgressIndicator())
-          : FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _currentLocation!,
-                initialZoom: 15.0,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  subdomains: const ['a', 'b', 'c'],
-                  userAgentPackageName: 'by.fortydegree.gpxmocklocation40',
-                ),
-                if (_currentLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        width: 80.0,
-                        height: 80.0,
-                        point: _currentLocation!,
-                        child: const Icon(
-                          Icons.my_location,
-                          color: Colors.blue,
-                          size: 40.0,
-                        ),
+      body: _routes.isEmpty
+          ? const Center(
+              child: Text('Здесь будет список ваших маршрутов.'),
+            )
+          : ListView.builder(
+              itemCount: _routes.length,
+              itemBuilder: (context, index) {
+                final route = _routes[index];
+                return ListTile(
+                  title: Text(route.name),
+                  subtitle: Text('Точек: ${route.points.length}'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => MapScreen(route: route),
+                      ),
+                    );
+                  },
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _deleteRoute(route, index);
+                      } else if (value == 'export') {
+                        _exportRoute(route);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'export',
+                        child: Text('Экспорт'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Удалить'),
                       ),
                     ],
                   ),
-              ],
+                );
+              },
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _importGpxFile,
+        tooltip: 'Импорт GPX',
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
-
-============= lib/features/onboarding/onboarding_screen.dart ===
-
+\n--- END OF FILE: ./lib/features/routes/routes_screen.dart ---\n\n
+--- START OF FILE: ./lib/features/onboarding/onboarding_screen.dart ---
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
@@ -271,6 +2248,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   PermissionStatus _locationStatus = PermissionStatus.denied;
+  PermissionStatus _storageStatus = PermissionStatus.denied;
   bool _isMockAppSelected = false;
 
   @override
@@ -282,8 +2260,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _checkPermissions() async {
     final location = await Permission.location.status;
+    final storage = await Permission.storage.status;
     setState(() {
       _locationStatus = location;
+      _storageStatus = storage;
     });
   }
 
@@ -306,9 +2286,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
+  Future<void> _requestStoragePermission() async {
+    final status = await Permission.storage.request();
+    setState(() {
+      _storageStatus = status;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allGranted = _locationStatus.isGranted && _isMockAppSelected;
+    final allGranted = _locationStatus.isGranted && _storageStatus.isGranted && _isMockAppSelected;
 
     return Scaffold(
       appBar: AppBar(
@@ -330,6 +2317,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               'Required to provide location data.',
               _locationStatus,
               _requestLocationPermission,
+            ),
+            const Divider(),
+            _buildPermissionTile(
+              'Storage Permission',
+              'Required to import GPX files from your device.',
+              _storageStatus,
+              _requestStoragePermission,
             ),
             const Divider(),
             CheckboxListTile(
@@ -380,154 +2374,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
-
-============= lib/main.dart ===
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
-
-import 'package:gpx_mock_location/features/onboarding/onboarding_screen.dart';
-import 'package:gpx_mock_location/features/idle/idle_screen.dart';
-import 'package:gpx_mock_location/features/map/map_screen.dart'; // Import the new map screen
-
-// Placeholder for the theme provider
-class ThemeProvider with ChangeNotifier {
-  final ThemeMode _themeMode = ThemeMode.system;
-  ThemeMode get themeMode => _themeMode;
-}
-
-// Placeholder screens
-class RoutesScreen extends StatelessWidget {
-  const RoutesScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Routes')));
-}
-
-class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Favorites')));
-}
-
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Settings')));
-}
-
-// GoRouter configuration
-final _router = GoRouter(
-  routes: [
-    GoRoute(
-        path: '/',
-        builder: (context, state) => const IdleScreen(),
-        routes: [
-          GoRoute(
-            path: 'map',
-            builder: (context, state) => const MapScreen(), // Use the real map screen
-          ),
-          GoRoute(
-            path: 'routes',
-            builder: (context, state) => const RoutesScreen(),
-          ),
-          GoRoute(
-            path: 'favorites',
-            builder: (context, state) => const FavoritesScreen(),
-          ),
-          GoRoute(
-            path: 'settings',
-            builder: (context, state) => const SettingsScreen(),
-          ),
-        ]),
-    GoRoute(
-      path: '/onboarding',
-      builder: (context, state) => const OnboardingScreen(),
-    ),
-  ],
-  redirect: (BuildContext context, GoRouterState state) async {
-    final allPermissionsGranted = await _checkAllPermissions();
-    final isOnboarding = state.fullPath == '/onboarding';
-
-    if (!allPermissionsGranted && !isOnboarding) {
-      return '/onboarding';
-    }
-
-    if (allPermissionsGranted && isOnboarding) {
-      return '/';
-    }
-
-    return null;
-  },
-);
-
-Future<bool> _checkAllPermissions() async {
-  final locationStatus = await Permission.location.status;
-  // Checking for mock location app is more complex, so we'll simplify for now.
-  // We will consider it granted if the other two are.
-  return locationStatus.isGranted;
-}
-
-void main() {
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
-      child: const MyApp(),
-    ),
-  );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'GPX Mock Location',
-      theme: ThemeData(
-        brightness: Brightness.light,
-        primarySwatch: Colors.blue,
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
-      ),
-      themeMode: Provider.of<ThemeProvider>(context).themeMode,
-      routerConfig: _router,
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
-============= test/widget_test.dart ===
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:gpx_mock_location/main.dart';
-
-void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
-  });
-}
-
+\n--- END OF FILE: ./lib/features/onboarding/onboarding_screen.dart ---\n\n

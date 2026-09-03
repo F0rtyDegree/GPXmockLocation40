@@ -1,4 +1,3 @@
-
 // ignore_for_file: avoid_print
 
 import 'dart:async';
@@ -36,7 +35,8 @@ class _MapScreenState extends State<MapScreen> {
 
   int _currentSegmentIndex = 0;
   double _distanceCoveredOnSegment = 0.0;
-  double _simulationSpeedKmph = 50.0;
+  // Default speed 5 km/h
+  double _simulationSpeedKmph = 5.0;
   final Distance _distance = const Distance();
 
   @override
@@ -57,7 +57,7 @@ class _MapScreenState extends State<MapScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
-        _simulationSpeedKmph = prefs.getDouble(_prefSpeedKey) ?? 50.0;
+        _simulationSpeedKmph = prefs.getDouble(_prefSpeedKey) ?? 5.0;
       });
     }
   }
@@ -97,7 +97,7 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _setMockLocation(LatLng location, double speedKmph, double altitude, double bearing, int satellites) async {
     try {
       final speedMps = speedKmph * 1000 / 3600;
-      
+      print('[NATIVE_CALL] setMockLocation: lat=${location.latitude}, lon=${location.longitude}, speed=$speedMps, altitude=$altitude, bearing=$bearing, satellites=$satellites');
       await _platform.invokeMethod('setMockLocation', {
         'lat': location.latitude,
         'lon': location.longitude,
@@ -130,7 +130,7 @@ class _MapScreenState extends State<MapScreen> {
       _setMockLocation(
           lastLocation, 
           0,
-          _currentAltitude ?? lastWaypoint.wpt.ele ?? 0,
+          lastWaypoint.wpt.ele ?? 0,
           _currentBearing ?? 0,
           _currentSatellites ?? 23
       );
@@ -138,7 +138,8 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final speedMps = _simulationSpeedKmph * 1000 / 3600;
-    final distanceThisTick = speedMps * 0.1; 
+    // Recalculate distance for 1 second interval
+    final distanceThisTick = speedMps; 
 
     _distanceCoveredOnSegment += distanceThisTick;
 
@@ -161,7 +162,7 @@ class _MapScreenState extends State<MapScreen> {
             _setMockLocation(
                 endLocation, 
                 0, 
-                widget.route.points.last.wpt.ele ?? _currentAltitude ?? 0,
+                widget.route.points.last.wpt.ele ?? 0,
                 _currentBearing ?? 0,
                 _currentSatellites ?? 23
             );
@@ -186,9 +187,7 @@ class _MapScreenState extends State<MapScreen> {
     final newLon = currentStartPoint.longitude + (currentEndPoint.longitude - currentStartPoint.longitude) * t;
     final newLocation = LatLng(newLat, newLon);
 
-    final startEle = currentStartWpt.wpt.ele ?? _currentAltitude ?? 252.0;
-    final endEle = currentEndWpt.wpt.ele ?? startEle;
-    final newAltitude = startEle + (endEle - startEle) * t;
+    final newAltitude = currentStartWpt.wpt.ele ?? 234.0;
 
     final newBearing = currentStartWpt.course ?? _currentBearing ?? 0.0;
     final newSatellites = currentStartWpt.satellites ?? _currentSatellites ?? 23;
@@ -234,7 +233,8 @@ class _MapScreenState extends State<MapScreen> {
         }
         _isSimulating = true;
       });
-      _simulationTimer = Timer.periodic(const Duration(milliseconds: 100), _simulationTick);
+      // Timer ticks every 1 second
+      _simulationTimer = Timer.periodic(const Duration(seconds: 1), _simulationTick);
     }
   }
   
