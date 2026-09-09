@@ -99,9 +99,10 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Не удаляем провайдер, чтобы не нарушить работу
-        // try {
-        //     locationManager?.removeTestProvider(MOCK_PROVIDER)
-        // } catch (e: Exception) { }
+        try {
+            locationManager?.removeTestProvider(MOCK_PROVIDER)
+        } catch (e: Exception) {
+            // Игнорируем, если провайдер уже удалён
+        }
     }
 }
