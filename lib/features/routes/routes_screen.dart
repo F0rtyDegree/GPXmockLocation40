@@ -154,7 +154,6 @@ class _RoutesScreenState extends State<RoutesScreen> {
           for (var segment in track.trksegs) {
             allPointsCount += segment.trkpts.length;
             for (var wpt in segment.trkpts) {
-              wpt.ele = 234;
                // Add point only if it's the first one or its coordinates are different from the previous one.
               if (routePoints.isEmpty || routePoints.last.wpt.lat != wpt.lat || routePoints.last.wpt.lon != wpt.lon) {
                 routePoints.add(GpxWaypoint(wpt));

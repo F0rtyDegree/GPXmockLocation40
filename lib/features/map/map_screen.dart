@@ -22,6 +22,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   static const _platform = MethodChannel('com.example.gpx_mock_location/mock_location');
   static const _prefSpeedKey = 'simulation_speed_kmph';
+  static const _prefUseTrackSpeedKey = 'use_track_speed';
 
   final MapController _mapController = MapController();
   
@@ -35,36 +36,46 @@ class _MapScreenState extends State<MapScreen> {
 
   int _currentSegmentIndex = 0;
   double _distanceCoveredOnSegment = 0.0;
-  // Default speed 5 km/h
+  
   double _simulationSpeedKmph = 5.0;
+  double _currentSpeedKmph = 0.0;
+  bool _useTrackSpeed = false;
+  bool _trackHasTimeData = false;
+  DateTime? _simulationStartTime;
+
   final Distance _distance = const Distance();
 
   @override
   void initState() {
     super.initState();
-    _loadSpeed();
+    _loadPreferences();
 
     if (widget.route.points.isNotEmpty) {
-        final firstPoint = widget.route.points.first;
+      final firstPoint = widget.route.points.first;
       _currentLocation = LatLng(firstPoint.wpt.lat ?? 0.0, firstPoint.wpt.lon ?? 0.0);
       _currentAltitude = firstPoint.wpt.ele ?? 0.0;
       _currentBearing = firstPoint.course ?? 0.0;
       _currentSatellites = firstPoint.satellites ?? 23;
+
+      // A track has time data if all points have a non-null time.
+      _trackHasTimeData = widget.route.points.every((p) => p.wpt.time != null);
     }
   }
 
-  Future<void> _loadSpeed() async {
+  Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
         _simulationSpeedKmph = prefs.getDouble(_prefSpeedKey) ?? 5.0;
+        _useTrackSpeed = prefs.getBool(_prefUseTrackSpeedKey) ?? false;
       });
     }
   }
 
-  Future<void> _saveSpeed(double speed) async {
+  Future<void> _savePreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_prefSpeedKey, speed);
+    await prefs.setDouble(_prefSpeedKey, _simulationSpeedKmph);
+    await prefs.setBool(_prefUseTrackSpeedKey, _useTrackSpeed);
   }
 
   @override
@@ -112,6 +123,90 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _simulationTick(Timer timer) {
+    if (_useTrackSpeed && _trackHasTimeData) {
+      _timeBasedSimulationTick(timer);
+    } else {
+      _fixedSpeedSimulationTick(timer);
+    }
+  }
+
+  void _timeBasedSimulationTick(Timer timer) {
+    if (!mounted || _simulationStartTime == null || !_isSimulating) {
+      timer.cancel();
+      return;
+    }
+
+    final routePoints = widget.route.points;
+    // This assumes the first point has a time, which is checked by _trackHasTimeData
+    final trackStartTime = routePoints.first.wpt.time!;
+    final elapsedRealTime = DateTime.now().difference(_simulationStartTime!);
+    final currentTargetTrackTime = trackStartTime.add(elapsedRealTime);
+
+    // Find the current segment index based on the elapsed time
+    while (_currentSegmentIndex < routePoints.length - 2 &&
+          (routePoints[_currentSegmentIndex + 1].wpt.time?.isBefore(currentTargetTrackTime) ?? false)) {
+      _currentSegmentIndex++;
+    }
+    
+    // End of simulation
+    if (currentTargetTrackTime.isAfter(routePoints.last.wpt.time!)) {
+      _simulationTimer?.cancel();
+      final lastWaypoint = routePoints.last;
+      final lastLocation = LatLng(lastWaypoint.wpt.lat!, lastWaypoint.wpt.lon!);
+
+      setState(() {
+        _isSimulating = false;
+        _currentLocation = lastLocation;
+        _currentSegmentIndex = routePoints.length - 1; // Mark as finished
+        _currentSpeedKmph = 0.0;
+      });
+
+      _setMockLocation(
+          lastLocation, 0, lastWaypoint.wpt.ele ?? 0, _currentBearing ?? 0, _currentSatellites ?? 23);
+      return;
+    }
+
+    final p1 = routePoints[_currentSegmentIndex];
+    final p2 = routePoints[_currentSegmentIndex + 1];
+
+    final segmentStartTime = p1.wpt.time!;
+    final segmentEndTime = p2.wpt.time!;
+    final segmentDuration = segmentEndTime.difference(segmentStartTime);
+
+    double t = 0.0; // Interpolation factor
+    if (segmentDuration.inMilliseconds > 0) {
+      t = currentTargetTrackTime.difference(segmentStartTime).inMilliseconds / segmentDuration.inMilliseconds;
+    }
+    t = t.clamp(0.0, 1.0);
+
+    final startPoint = LatLng(p1.wpt.lat!, p1.wpt.lon!);
+    final endPoint = LatLng(p2.wpt.lat!, p2.wpt.lon!);
+
+    final newLat = startPoint.latitude + (endPoint.latitude - startPoint.latitude) * t;
+    final newLon = startPoint.longitude + (endPoint.longitude - startPoint.longitude) * t;
+    final newLocation = LatLng(newLat, newLon);
+
+    final distance = _distance(startPoint, endPoint);
+    final speedMps = (segmentDuration.inSeconds > 0) ? distance / segmentDuration.inSeconds : 0.0;
+    final speedKmph = speedMps * 3.6;
+
+    final newAltitude = p1.wpt.ele ?? 234.0;
+    final newBearing = p1.course ?? _currentBearing ?? 0.0;
+    final newSatellites = p1.satellites ?? _currentSatellites ?? 23;
+
+    setState(() {
+      _currentLocation = newLocation;
+      _currentAltitude = newAltitude;
+      _currentBearing = newBearing;
+      _currentSatellites = newSatellites;
+      _currentSpeedKmph = speedKmph;
+    });
+
+    _setMockLocation(newLocation, speedKmph, newAltitude, newBearing, newSatellites);
+    _mapController.move(newLocation, _mapController.camera.zoom);
+  }
+
+  void _fixedSpeedSimulationTick(Timer timer) {
     if (!mounted) {
       timer.cancel();
       return;
@@ -138,7 +233,6 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final speedMps = _simulationSpeedKmph * 1000 / 3600;
-    // Recalculate distance for 1 second interval
     final distanceThisTick = speedMps; 
 
     _distanceCoveredOnSegment += distanceThisTick;
@@ -158,7 +252,6 @@ class _MapScreenState extends State<MapScreen> {
 
         if (_currentSegmentIndex >= widget.route.points.length - 1) {
             final endLocation = LatLng(widget.route.points.last.wpt.lat!, widget.route.points.last.wpt.lon!);
-            setState(() { _currentLocation = endLocation; });
             _setMockLocation(
                 endLocation, 
                 0, 
@@ -167,7 +260,11 @@ class _MapScreenState extends State<MapScreen> {
                 _currentSatellites ?? 23
             );
             _simulationTimer?.cancel();
-            setState(() { _isSimulating = false; });
+            setState(() {
+              _currentLocation = endLocation;
+              _isSimulating = false;
+              _currentSpeedKmph = 0.0;
+            });
             return;
         }
 
@@ -188,7 +285,6 @@ class _MapScreenState extends State<MapScreen> {
     final newLocation = LatLng(newLat, newLon);
 
     final newAltitude = currentStartWpt.wpt.ele ?? 234.0;
-
     final newBearing = currentStartWpt.course ?? _currentBearing ?? 0.0;
     final newSatellites = currentStartWpt.satellites ?? _currentSatellites ?? 23;
 
@@ -197,6 +293,7 @@ class _MapScreenState extends State<MapScreen> {
       _currentAltitude = newAltitude;
       _currentBearing = newBearing;
       _currentSatellites = newSatellites;
+      _currentSpeedKmph = _simulationSpeedKmph;
     });
 
     _setMockLocation(newLocation, _simulationSpeedKmph, newAltitude, newBearing, newSatellites);
@@ -207,69 +304,112 @@ class _MapScreenState extends State<MapScreen> {
     if (widget.route.points.length < 2) return;
 
     if (_isSimulating) {
+      // PAUSE
       _simulationTimer?.cancel();
       if (_currentLocation != null) {
         _setMockLocation(
-          _currentLocation!, 
+          _currentLocation!,
           0,
           _currentAltitude ?? 0.0,
           _currentBearing ?? 0.0,
-          _currentSatellites ?? 23
-        ); 
+          _currentSatellites ?? 23,
+        );
       }
       setState(() {
         _isSimulating = false;
+        _currentSpeedKmph = 0.0;
       });
     } else {
+      // PLAY (Restart simulation from the beginning)
+      _currentSegmentIndex = 0;
+      _distanceCoveredOnSegment = 0.0;
+      final firstPoint = widget.route.points.first;
       setState(() {
-        if (_currentSegmentIndex >= widget.route.points.length - 1) {
-          _currentSegmentIndex = 0;
-          _distanceCoveredOnSegment = 0.0;
-          final firstPoint = widget.route.points.first;
-          _currentLocation = LatLng(firstPoint.wpt.lat!, firstPoint.wpt.lon!);
-          _currentAltitude = firstPoint.wpt.ele ?? 0.0;
-          _currentBearing = firstPoint.course ?? 0.0;
-          _currentSatellites = firstPoint.satellites ?? 23;
-        }
+        _currentLocation = LatLng(firstPoint.wpt.lat!, firstPoint.wpt.lon!);
+        _currentAltitude = firstPoint.wpt.ele ?? 0.0;
+        _currentBearing = firstPoint.course ?? 0.0;
+        _currentSatellites = firstPoint.satellites ?? 23;
+      });
+
+      if (_useTrackSpeed && _trackHasTimeData) {
+        _simulationStartTime = DateTime.now();
+      }
+      
+      setState(() {
         _isSimulating = true;
       });
-      // Timer ticks every 1 second
-      _simulationTimer = Timer.periodic(const Duration(seconds: 1), _simulationTick);
+
+      _simulationTimer?.cancel();
+      _simulationTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        _simulationTick,
+      );
     }
   }
   
   void _showSpeedInputDialog() {
-    final TextEditingController speedController = TextEditingController(text: _simulationSpeedKmph.toStringAsFixed(0));
+    final TextEditingController speedController =
+        TextEditingController(text: _simulationSpeedKmph.toStringAsFixed(0));
+    
+    bool dialogUseTrackSpeed = _useTrackSpeed;
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Введите скорость'),
-          content: TextField(
-            controller: speedController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Скорость в км/ч'),
-            autofocus: true,
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Отмена'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () {
-                final double? newSpeed = double.tryParse(speedController.text);
-                if (newSpeed != null && newSpeed > 0) {
-                  setState(() {
-                    _simulationSpeedKmph = newSpeed;
-                    _saveSpeed(newSpeed);
-                  });
-                }
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Настройки скорости'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Text('Скорость трека'),
+                      Switch(
+                        value: dialogUseTrackSpeed,
+                        onChanged: _trackHasTimeData
+                            ? (bool value) {
+                                setDialogState(() {
+                                  dialogUseTrackSpeed = value;
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: speedController,
+                    enabled: !dialogUseTrackSpeed,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Скорость в км/ч'),
+                    autofocus: true,
+                  ),
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Отмена'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                TextButton(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    final double? newSpeed = double.tryParse(speedController.text);
+                    setState(() {
+                      _useTrackSpeed = dialogUseTrackSpeed;
+                      if (!_useTrackSpeed && newSpeed != null && newSpeed > 0) {
+                        _simulationSpeedKmph = newSpeed;
+                      }
+                      _savePreferences();
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -278,6 +418,17 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final routeLatLngs = widget.route.points.map((p) => LatLng(p.wpt.lat!, p.wpt.lon!)).toList();
+
+    String speedLabel;
+    if (_isSimulating) {
+      speedLabel = '${_currentSpeedKmph.toStringAsFixed(0)} км/ч';
+    } else {
+      if (_useTrackSpeed && _trackHasTimeData) {
+        speedLabel = '0 км/ч';
+      } else {
+        speedLabel = '${_simulationSpeedKmph.toStringAsFixed(0)} км/ч';
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -352,7 +503,7 @@ class _MapScreenState extends State<MapScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                   child: Text(
-                    '${_simulationSpeedKmph.toStringAsFixed(0)} км/ч',
+                    speedLabel,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
